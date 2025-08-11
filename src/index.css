@@ -1,0 +1,384 @@
+@import 'katex/dist/katex.min.css';
+@import 'highlight.js/styles/github.css';
+
+:root {
+  /* 浅色主题 */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #e9ecef;
+  --text-primary: #212529;
+  --text-secondary: #6c757d;
+  --text-tertiary: #adb5bd;
+  --border-color: #dee2e6;
+  --accent-color: #007bff;
+  --accent-color-light: #e3f2fd;
+  --hover-bg: #f8f9fa;
+  --shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  --error-color: #dc3545;
+  --warning-color: #ffc107;
+  --success-color: #28a745;
+  --danger-color: #dc3545;
+  --shadow-color: rgba(0, 0, 0, 0.1);
+  --overlay-bg: rgba(0, 0, 0, 0.5);
+  --warning-bg: #fff3cd;
+  --warning-border: #ffeaa7;
+  --warning-text: #856404;
+  --accent-bg: #e3f2fd;
+  --text-on-accent: #ffffff;
+  
+  /* 字体设置 */
+  --font-size-base: 14px;
+  --font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+}
+
+/* 暗色主题 */
+[data-theme="dark"] {
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #2d2d2d;
+  --bg-tertiary: #404040;
+  --text-primary: #ffffff;
+  --text-secondary: #b3b3b3;
+  --text-tertiary: #808080;
+  --border-color: #404040;
+  --accent-color: #4dabf7;
+  --accent-color-light: #1e3a8a20;
+  --hover-bg: #333333;
+  --shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  --error-color: #f87171;
+  --warning-color: #fbbf24;
+  --success-color: #34d399;
+  --danger-color: #f87171;
+  --shadow-color: rgba(0, 0, 0, 0.3);
+  --overlay-bg: rgba(0, 0, 0, 0.7);
+  --warning-bg: #451a03;
+  --warning-border: #92400e;
+  --warning-text: #fbbf24;
+  --accent-bg: #1e3a8a20;
+  --text-on-accent: #ffffff;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-base);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  height: 100vh;
+  overflow: hidden;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+#root {
+  height: 100vh;
+  display: flex;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-tertiary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--text-tertiary);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* 拖拽样式 */
+.dragging {
+  opacity: 0.5;
+}
+
+.drag-over {
+  background-color: var(--accent-bg) !important;
+}
+
+/* 标签样式 */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid var(--border-color);
+}
+
+.tag:hover {
+  background-color: var(--hover-bg);
+  color: var(--text-primary);
+  border-color: var(--accent-color);
+}
+
+.tag.selected {
+  background-color: var(--accent-color);
+  color: var(--text-on-accent);
+  border-color: var(--accent-color);
+}
+
+/* Markdown 内容样式 */
+.markdown-content {
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+  margin: 1em 0 0.5em 0;
+  color: var(--text-primary);
+}
+
+.markdown-content p {
+  margin: 0.5em 0;
+  color: var(--text-primary);
+}
+
+/* 行内代码样式（非代码块） */
+.markdown-content code:not(.hljs) {
+  background-color: var(--bg-tertiary);
+  color: var(--accent-color);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  border: 1px solid var(--border-color);
+  font-size: 0.9em;
+}
+
+.markdown-content pre {
+  background-color: var(--bg-tertiary);
+  padding: 1em;
+  border-radius: 5px;
+  overflow-x: auto;
+  margin: 1em 0;
+  border: 1px solid var(--border-color);
+}
+
+.markdown-content pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-primary);
+}
+
+.markdown-content blockquote {
+  border-left: 4px solid var(--accent-color);
+  padding-left: 1em;
+  margin: 1em 0;
+  color: var(--text-secondary);
+  background-color: var(--bg-tertiary);
+  padding: 1em;
+  border-radius: 0 5px 5px 0;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  padding-left: 2em;
+  margin: 0.5em 0;
+}
+
+.markdown-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+  border: 1px solid var(--border-color);
+}
+
+.markdown-content th,
+.markdown-content td {
+  border: 1px solid var(--border-color);
+  padding: 8px;
+  text-align: left;
+}
+
+.markdown-content th {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.markdown-content a {
+  color: var(--accent-color);
+  text-decoration: none;
+}
+
+.markdown-content a:hover {
+  text-decoration: underline;
+}
+
+/* 表单控件样式 */
+/* 滑块样式 */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+  outline: none;
+  border: 1px solid var(--border-color);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  background: var(--accent-color);
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid var(--bg-primary);
+  box-shadow: 0 2px 4px var(--shadow-color);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: var(--accent-color);
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid var(--bg-primary);
+  box-shadow: 0 2px 4px var(--shadow-color);
+}
+
+/* 复选框样式 */
+input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border-color);
+  border-radius: 3px;
+  background-color: var(--bg-primary);
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+input[type="checkbox"]:checked {
+  background-color: var(--accent-color);
+  border-color: var(--accent-color);
+}
+
+input[type="checkbox"]:checked::after {
+  content: '✓';
+  position: absolute;
+  top: -2px;
+  left: 1px;
+  color: var(--text-on-accent);
+  font-size: 12px;
+  font-weight: bold;
+}
+
+input[type="checkbox"]:hover {
+  border-color: var(--accent-color);
+}
+
+/* Textarea placeholder 样式 */
+textarea::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+textarea::-webkit-input-placeholder {
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+textarea::-moz-placeholder {
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+/* 文本选中样式 */
+::selection {
+  background-color: var(--accent-color);
+  color: var(--text-on-accent);
+}
+
+::-moz-selection {
+  background-color: var(--accent-color);
+  color: var(--text-on-accent);
+}
+
+/* 代码高亮样式 */
+.markdown-content .hljs {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  padding: 1em;
+  overflow-x: auto;
+}
+
+/* 暗色主题下的代码高亮颜色 */
+[data-theme="dark"] .hljs-keyword,
+[data-theme="dark"] .hljs-selector-tag,
+[data-theme="dark"] .hljs-literal,
+[data-theme="dark"] .hljs-section,
+[data-theme="dark"] .hljs-link {
+  color: #c792ea !important;
+}
+
+[data-theme="dark"] .hljs-string,
+[data-theme="dark"] .hljs-title,
+[data-theme="dark"] .hljs-name,
+[data-theme="dark"] .hljs-type,
+[data-theme="dark"] .hljs-attribute,
+[data-theme="dark"] .hljs-symbol,
+[data-theme="dark"] .hljs-bullet,
+[data-theme="dark"] .hljs-addition,
+[data-theme="dark"] .hljs-variable,
+[data-theme="dark"] .hljs-template-tag,
+[data-theme="dark"] .hljs-template-variable {
+  color: #c3e88d !important;
+}
+
+[data-theme="dark"] .hljs-comment,
+[data-theme="dark"] .hljs-quote,
+[data-theme="dark"] .hljs-deletion,
+[data-theme="dark"] .hljs-meta {
+  color: #546e7a !important;
+}
+
+[data-theme="dark"] .hljs-number,
+[data-theme="dark"] .hljs-regexp,
+[data-theme="dark"] .hljs-literal {
+  color: #f78c6c !important;
+}
+
+[data-theme="dark"] .hljs-built_in,
+[data-theme="dark"] .hljs-builtin-name,
+[data-theme="dark"] .hljs-class .hljs-title {
+  color: #ffcb6b !important;
+}
+
+[data-theme="dark"] .hljs-function .hljs-title {
+  color: #82aaff !important;
+}
+
+/* 浅色主题下保持默认的github样式，但确保背景色一致 */
+[data-theme="light"] .hljs {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+}

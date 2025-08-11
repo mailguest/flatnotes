@@ -1,0 +1,4 @@
+data/*
+data/notes/*
+data/uploads/*
+node_modules

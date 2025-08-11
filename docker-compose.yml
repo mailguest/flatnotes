@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  flatnotes:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: flatnotes-app
+    ports:
+      - "3001:3001"
+    volumes:
+      # 挂载数据目录到宿主机，确保数据持久化
+      - ./data:/app/data
+      # 挂载上传目录
+      - ./data/uploads:/app/data/uploads
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # 开发环境配置
+  flatnotes-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: flatnotes-dev
+    ports:
+      - "3001:3001"
+      - "3000:3000"  # Vite 开发服务器端口
+    volumes:
+      # 挂载整个项目目录用于开发
+      - .:/app
+      - /app/node_modules  # 避免覆盖容器内的 node_modules
+      # 挂载数据目录
+      - ./data:/app/data
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+    restart: unless-stopped
+    profiles:
+      - dev
+
+volumes:
+  # 定义数据卷（可选，如果不想使用绑定挂载）
+  flatnotes_data:
+    driver: local

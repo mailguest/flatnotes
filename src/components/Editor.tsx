@@ -1,0 +1,941 @@
+import React, { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import rehypeHighlight from 'rehype-highlight';
+import { Eye, Edit, Upload, Tag, X, Download } from 'lucide-react';
+import { Note, Attachment } from '../types';
+import { uploadAPI, checkServerAvailability } from '../utils/api';
+import { useSettings } from '../contexts/SettingsContext';
+
+interface EditorProps {
+  note: Note | undefined;
+  onUpdateNote: (noteId: string, updates: Partial<Note>) => void;
+  isPreview?: boolean;
+  isSplit?: boolean;
+  onTogglePreview?: () => void;
+}
+
+const Editor: React.FC<EditorProps> = ({ note, onUpdateNote, isPreview = false, isSplit = false, onTogglePreview }) => {
+  const { settings } = useSettings();
+  const [showTagInput, setShowTagInput] = useState(false);
+  const [newTag, setNewTag] = useState('');
+  const [isComposing, setIsComposing] = useState(false); // 跟踪中文输入法状态
+  const [showPlaceholder, setShowPlaceholder] = useState(true); // 控制placeholder显示
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  
+  // 计算行号
+  const getLineNumbers = (content: string) => {
+    const lines = content.split('\n');
+    return lines.map((_, index) => index + 1);
+  };
+
+  useEffect(() => {
+    if (textareaRef.current && !isPreview) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+    }
+  }, [note?.content, isPreview]);
+
+  // 当切换到新笔记时，重新显示placeholder
+  useEffect(() => {
+    if (note && note.content === '') {
+      setShowPlaceholder(true);
+    }
+  }, [note?.id]);
+
+  if (!note) {
+    return (
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'var(--bg-tertiary)',
+        color: 'var(--text-secondary)',
+        fontSize: '16px',
+      }}>
+        选择一个笔记开始编辑
+      </div>
+    );
+  }
+
+  const handleTitleChange = (title: string) => {
+    onUpdateNote(note.id, { title });
+  };
+
+  const handleContentChange = (content: string) => {
+    onUpdateNote(note.id, { content });
+  };
+
+  // 处理textarea点击事件，隐藏placeholder
+  const handleTextareaClick = () => {
+    if (showPlaceholder) {
+      setShowPlaceholder(false);
+    }
+  };
+
+  const handleAddTag = () => {
+    if (newTag.trim() && !note.tags.includes(newTag.trim())) {
+      onUpdateNote(note.id, { tags: [...note.tags, newTag.trim()] });
+      setNewTag('');
+      setShowTagInput(false);
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    onUpdateNote(note.id, { tags: note.tags.filter(tag => tag !== tagToRemove) });
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files) {
+      // 检查服务器是否可用
+      const serverAvailable = await checkServerAvailability();
+      
+      Array.from(files).forEach(async (file) => {
+         try {
+           let attachment: Attachment | null = null;
+           
+           if (serverAvailable) {
+             // 服务器可用，上传到服务器
+             console.log(`📤 上传文件到服务器: ${file.name}`);
+             const uploadResult = await uploadAPI.uploadFile(file);
+             
+             attachment = {
+               id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+               name: uploadResult.originalName,
+               type: file.type,
+               size: uploadResult.size,
+               url: uploadResult.url, // 服务器返回的相对路径
+             };
+             console.log(`✅ 文件上传成功: ${file.name} -> ${uploadResult.url}`);
+           } else {
+             // 服务器不可用，转换为base64存储在本地
+             console.log(`💾 服务器不可用，将文件转换为base64: ${file.name}`);
+             const reader = new FileReader();
+             
+             await new Promise<void>((resolve) => {
+               reader.onload = (e) => {
+                 attachment = {
+                   id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+                   name: file.name,
+                   type: file.type,
+                   size: file.size,
+                   url: e.target?.result as string,
+                 };
+                 resolve();
+               };
+               reader.readAsDataURL(file);
+             });
+           }
+           
+           // 添加附件到笔记
+           if (attachment) {
+             onUpdateNote(note.id, { 
+               attachments: [...note.attachments, attachment] 
+             });
+           }
+          
+        } catch (error) {
+          console.error(`❌ 文件上传失败: ${file.name}`, error);
+          alert(`文件上传失败: ${file.name}\n${error instanceof Error ? error.message : '未知错误'}`);
+        }
+      });
+    }
+    
+    // 清空文件输入，允许重复选择同一文件
+    if (event.target) {
+      event.target.value = '';
+    }
+  };
+
+  const handleRemoveAttachment = async (attachmentId: string) => {
+    const attachment = note.attachments.find(att => att.id === attachmentId);
+    if (!attachment) return;
+    
+    try {
+      // 如果是服务器上的文件（URL以/uploads/开头），尝试从服务器删除
+      if (attachment.url.startsWith('/uploads/')) {
+        const filename = attachment.url.split('/').pop();
+        if (filename) {
+          const serverAvailable = await checkServerAvailability();
+          if (serverAvailable) {
+            console.log(`🗑️ 从服务器删除文件: ${filename}`);
+            await uploadAPI.deleteFile(filename);
+            console.log(`✅ 文件删除成功: ${filename}`);
+          }
+        }
+      }
+    } catch (error) {
+      console.error(`❌ 删除服务器文件失败: ${attachment.name}`, error);
+      // 即使服务器删除失败，也继续删除本地引用
+    }
+    
+    // 从笔记中移除附件引用
+    onUpdateNote(note.id, {
+      attachments: note.attachments.filter(att => att.id !== attachmentId)
+    });
+  };
+
+  const insertAttachmentToContent = (attachment: Attachment) => {
+    let insertText = '';
+    if (attachment.type.startsWith('image/')) {
+      insertText = `![${attachment.name}](${attachment.url})`;
+    } else {
+      insertText = `[${attachment.name}](${attachment.url})`;
+    }
+    
+    const textarea = textareaRef.current;
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const newContent = note.content.substring(0, start) + insertText + note.content.substring(end);
+      handleContentChange(newContent);
+      
+      // 设置光标位置
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(start + insertText.length, start + insertText.length);
+      }, 0);
+    }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const downloadAttachment = (attachment: Attachment) => {
+    const link = document.createElement('a');
+    link.href = attachment.url;
+    link.download = attachment.name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // 处理输入法组合开始
+  const handleCompositionStart = () => {
+    setIsComposing(true);
+  };
+
+  // 处理输入法组合结束
+  const handleCompositionEnd = () => {
+    setIsComposing(false);
+  };
+
+  // 重新排序有序列表的序号
+  const renumberOrderedLists = (text: string): string => {
+    const lines = text.split('\n');
+    const result: string[] = [];
+    const counters: { [key: string]: number } = {}; // 按缩进级别记录计数器
+    
+    for (const line of lines) {
+      const match = line.match(/^(\s*)(\d+)\.\s(.*)$/);
+      if (match) {
+        const indent = match[1];
+        const content = match[3];
+        
+        // 重置更深层级的计数器
+        Object.keys(counters).forEach(key => {
+          if (key.length > indent.length) {
+            delete counters[key];
+          }
+        });
+        
+        // 获取或初始化当前层级的计数器
+        if (!counters[indent]) {
+          counters[indent] = 1;
+        } else {
+          counters[indent]++;
+        }
+        
+        result.push(`${indent}${counters[indent]}. ${content}`);
+      } else {
+        // 非有序列表行，重置所有计数器
+        if (line.trim() !== '' && !line.match(/^\s*[-*+]\s/)) {
+          Object.keys(counters).forEach(key => delete counters[key]);
+        }
+        result.push(line);
+      }
+    }
+    
+    return result.join('\n');
+  };
+
+  // 处理键盘事件，特别是Tab键
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      
+      const textarea = e.currentTarget;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const value = textarea.value;
+      
+      // 找到当前行的范围
+      const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+      const lineEnd = value.indexOf('\n', end);
+      const actualLineEnd = lineEnd === -1 ? value.length : lineEnd;
+      const currentLine = value.substring(lineStart, actualLineEnd);
+      
+      // 检查是否是列表项
+      const listMatch = currentLine.match(/^(\s*)([-*+]|\d+\.)\s/);
+      
+      if (e.shiftKey) {
+        // Shift+Tab: 减少缩进
+        if (listMatch) {
+          // 列表项减少缩进
+          const currentIndent = listMatch[1];
+          if (currentIndent.length >= 4) {
+            const newIndent = currentIndent.substring(4);
+            const newLine = newIndent + currentLine.substring(currentIndent.length);
+            let newValue = value.substring(0, lineStart) + newLine + value.substring(actualLineEnd);
+            
+            // 如果是有序列表，重新排序序号
+            const isOrderedList = /^\s*\d+\.\s/.test(newLine);
+            if (isOrderedList) {
+              newValue = renumberOrderedLists(newValue);
+            }
+            
+            handleContentChange(newValue);
+            
+            setTimeout(() => {
+              const newStart = Math.max(lineStart, start - 4);
+              const newEnd = Math.max(lineStart, end - 4);
+              textarea.setSelectionRange(newStart, newEnd);
+            }, 0);
+          }
+        } else {
+          // 普通行减少缩进
+          if (currentLine.startsWith('    ')) {
+            const newValue = value.substring(0, lineStart) + currentLine.substring(4) + value.substring(actualLineEnd);
+            handleContentChange(newValue);
+            
+            setTimeout(() => {
+              const newStart = Math.max(lineStart, start - 4);
+              const newEnd = Math.max(lineStart, end - 4);
+              textarea.setSelectionRange(newStart, newEnd);
+            }, 0);
+          } else if (currentLine.startsWith('\t')) {
+            const newValue = value.substring(0, lineStart) + currentLine.substring(1) + value.substring(actualLineEnd);
+            handleContentChange(newValue);
+            
+            setTimeout(() => {
+              const newStart = Math.max(lineStart, start - 1);
+              const newEnd = Math.max(lineStart, end - 1);
+              textarea.setSelectionRange(newStart, newEnd);
+            }, 0);
+          }
+        }
+      } else {
+        // Tab: 增加缩进
+        if (listMatch) {
+          // 列表项增加缩进 - 在列表标识符前添加4个空格
+          const newLine = '    ' + currentLine;
+          let newValue = value.substring(0, lineStart) + newLine + value.substring(actualLineEnd);
+          
+          // 如果是有序列表，重新排序序号
+          const isOrderedList = /^\s*\d+\.\s/.test(newLine);
+          if (isOrderedList) {
+            newValue = renumberOrderedLists(newValue);
+          }
+          
+          handleContentChange(newValue);
+          
+          setTimeout(() => {
+            textarea.setSelectionRange(start + 4, end + 4);
+          }, 0);
+        } else if (start === end) {
+          // 没有选中文本且不是列表项，在光标位置插入缩进
+          const newValue = value.substring(0, start) + '    ' + value.substring(end);
+          handleContentChange(newValue);
+          
+          setTimeout(() => {
+            textarea.setSelectionRange(start + 4, start + 4);
+          }, 0);
+        } else {
+          // 选中了文本，对每行添加缩进
+          const selectedText = value.substring(start, end);
+          const lines = selectedText.split('\n');
+          const indentedLines = lines.map(line => '    ' + line);
+          const newSelectedText = indentedLines.join('\n');
+          
+          const newValue = value.substring(0, start) + newSelectedText + value.substring(end);
+          handleContentChange(newValue);
+          
+          setTimeout(() => {
+            textarea.setSelectionRange(start, start + newSelectedText.length);
+          }, 0);
+        }
+      }
+    } else if (e.key === 'Enter') {
+      // 如果正在使用输入法组合，不处理Enter键
+      if (isComposing) {
+        return;
+      }
+      
+      // 处理回车键，自动缩进
+      const textarea = e.currentTarget;
+      const start = textarea.selectionStart;
+      const value = textarea.value;
+      
+      // 找到当前行的开始
+      const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+      const lineEnd = value.indexOf('\n', start);
+      const actualLineEnd = lineEnd === -1 ? value.length : lineEnd;
+      const currentLine = value.substring(lineStart, actualLineEnd);
+      
+      // 检测当前行的缩进
+      const indentMatch = currentLine.match(/^(\s*)/);
+      const indent = indentMatch ? indentMatch[1] : '';
+      
+      // 检查是否是列表项
+      const listMatch = currentLine.match(/^(\s*)([-*+]|\d+\.)\s/);
+      if (listMatch) {
+        e.preventDefault();
+        const listIndent = listMatch[1];
+        const listMarker = listMatch[2];
+        
+        // 如果当前行只有列表标记，删除它
+        if (currentLine.trim() === listMarker) {
+          const newValue = value.substring(0, lineStart) + listIndent + value.substring(actualLineEnd);
+          handleContentChange(newValue);
+          setTimeout(() => {
+            textarea.setSelectionRange(lineStart + listIndent.length, lineStart + listIndent.length);
+          }, 0);
+        } else {
+          // 创建新的列表项
+          let newMarker = listMarker;
+          if (/^\d+\./.test(listMarker)) {
+            // 数字列表，递增数字
+            const num = parseInt(listMarker) + 1;
+            newMarker = num + '.';
+          }
+          
+          const newValue = value.substring(0, start) + '\n' + listIndent + newMarker + ' ' + value.substring(start);
+          handleContentChange(newValue);
+          setTimeout(() => {
+            const newPos = start + 1 + listIndent.length + newMarker.length + 1;
+            textarea.setSelectionRange(newPos, newPos);
+          }, 0);
+        }
+      } else if (indent) {
+        // 普通缩进行，保持缩进
+        e.preventDefault();
+        const newValue = value.substring(0, start) + '\n' + indent + value.substring(start);
+        handleContentChange(newValue);
+        setTimeout(() => {
+          textarea.setSelectionRange(start + 1 + indent.length, start + 1 + indent.length);
+        }, 0);
+      }
+    }
+  };
+
+  return (
+    <div style={{ 
+      flex: 1, 
+      display: 'flex', 
+      flexDirection: 'column', 
+      backgroundColor: 'var(--bg-primary)',
+      height: '100%',
+      minHeight: 0,
+      overflow: 'hidden'
+    }}>
+      {/* 头部工具栏 */}
+      <div style={{
+        padding: '17px 16px',
+        borderBottom: '1px solid var(--border-color)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: 'var(--bg-tertiary)',
+      }}>
+        <div style={{ flex: 1 }}>
+          <input
+            type="text"
+            value={note.title}
+            onChange={(e) => handleTitleChange(e.target.value)}
+            style={{
+              fontSize: '18px',
+              fontWeight: 'bold',
+              border: 'none',
+              outline: 'none',
+              backgroundColor: 'transparent',
+              width: '100%',
+              color: 'var(--text-primary)',
+            }}
+            placeholder="笔记标题"
+          />
+        </div>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              padding: '6px 10px',
+              backgroundColor: 'var(--bg-secondary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '14px',
+              color: 'var(--text-secondary)',
+              transition: 'all 0.2s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--hover-bg)';
+              e.currentTarget.style.color = 'var(--text-primary)';
+              e.currentTarget.style.borderColor = 'var(--accent-color)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
+              e.currentTarget.style.color = 'var(--text-secondary)';
+              e.currentTarget.style.borderColor = 'var(--border-color)';
+            }}
+          >
+            <Upload size={16} />
+            上传附件
+          </button>
+          <button
+            onClick={() => onTogglePreview?.()}
+            style={{
+              padding: '6px 10px',
+              backgroundColor: (isPreview || isSplit) ? 'var(--accent-color)' : 'var(--bg-secondary)',
+              color: (isPreview || isSplit) ? 'var(--text-on-accent)' : 'var(--text-secondary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '14px',
+              transition: 'all 0.2s ease',
+            }}
+            onMouseEnter={(e) => {
+              if (!isPreview && !isSplit) {
+                e.currentTarget.style.backgroundColor = 'var(--hover-bg)';
+                e.currentTarget.style.color = 'var(--text-primary)';
+                e.currentTarget.style.borderColor = 'var(--accent-color)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isPreview && !isSplit) {
+                e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
+                e.currentTarget.style.color = 'var(--text-secondary)';
+                e.currentTarget.style.borderColor = 'var(--border-color)';
+              }
+            }}
+            title={isSplit ? '分屏模式' : isPreview ? '预览模式' : '编辑模式'}
+          >
+            {isSplit ? (
+              <>
+                <Edit size={16} />
+                <Eye size={16} />
+              </>
+            ) : isPreview ? (
+              <Eye size={16} />
+            ) : (
+              <Edit size={16} />
+            )}
+            {isSplit ? '分屏' : isPreview ? '预览' : '编辑'}
+          </button>
+        </div>
+      </div>
+
+      {/* 标签区域 */}
+      <div style={{ padding: '17px 16px', borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <Tag size={14} style={{ color: 'var(--text-secondary)' }} />
+          {note.tags.map(tag => (
+            <span
+              key={tag}
+              className="tag"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                cursor: 'pointer',
+              }}
+            >
+              {tag}
+              <X
+                size={10}
+                onClick={() => handleRemoveTag(tag)}
+                style={{ cursor: 'pointer' }}
+              />
+            </span>
+          ))}
+          {showTagInput ? (
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              <input
+                type="text"
+                value={newTag}
+                onChange={(e) => setNewTag(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
+                onBlur={handleAddTag}
+                placeholder="新标签"
+                autoFocus
+                style={{
+                  padding: '2px 6px',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  outline: 'none',
+                  width: '80px',
+                  backgroundColor: 'var(--bg-primary)',
+                  color: 'var(--text-primary)',
+                }}
+              />
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowTagInput(true)}
+              style={{
+                padding: '2px 8px',
+                backgroundColor: 'transparent',
+                border: '1px dashed var(--border-color)',
+                borderRadius: '12px',
+                cursor: 'pointer',
+                fontSize: '12px',
+                color: 'var(--text-secondary)',
+                transition: 'all 0.2s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = 'var(--accent-color)';
+                e.currentTarget.style.color = 'var(--text-primary)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'var(--border-color)';
+                e.currentTarget.style.color = 'var(--text-secondary)';
+              }}
+            >
+              + 添加标签
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* 附件区域 */}
+      {note.attachments.length > 0 && (
+        <div style={{ padding: '17px 16px', borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
+          <h4 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: 'var(--text-secondary)' }}>
+            附件 ({note.attachments.length})
+          </h4>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {note.attachments.map(attachment => (
+              <div
+                key={attachment.id}
+                style={{
+                  padding: '8px',
+                  backgroundColor: 'var(--bg-primary)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '12px',
+                  maxWidth: '200px',
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontWeight: '500',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {attachment.name}
+                  </div>
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '10px' }}>
+                    {formatFileSize(attachment.size)}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button
+                    onClick={() => insertAttachmentToContent(attachment)}
+                    style={{
+                      padding: '2px',
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: 'var(--accent-color)',
+                    }}
+                    title="插入到内容"
+                  >
+                    <Edit size={12} />
+                  </button>
+                  <button
+                    onClick={() => downloadAttachment(attachment)}
+                    style={{
+                      padding: '2px',
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: 'var(--accent-color)',
+                    }}
+                    title="下载"
+                  >
+                    <Download size={12} />
+                  </button>
+                  <button
+                    onClick={() => handleRemoveAttachment(attachment.id)}
+                    style={{
+                      padding: '2px',
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: 'var(--error-color)',
+                    }}
+                    title="删除"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 编辑器/预览区域 */}
+      <div style={{ 
+        flex: 1, 
+        overflow: 'auto',
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: isSplit ? 'row' : 'column'
+      }}>
+        {isSplit ? (
+          // 分屏模式：左侧编辑器，右侧预览
+          <>
+            <div style={{ 
+              flex: 1, 
+              display: 'flex',
+              flexDirection: 'row',
+              borderRight: '1px solid var(--border-color)'
+            }}>
+              {settings.showLineNumbers && (
+                <div style={{
+                  width: '50px',
+                  backgroundColor: 'var(--bg-secondary)',
+                  borderRight: '1px solid var(--border-color)',
+                  padding: '24px 8px',
+                  fontSize: `${settings.fontSize}px`,
+                  lineHeight: settings.wordWrap ? '1.6' : '1.4',
+                  fontFamily: settings.fontFamily === 'mono' 
+                    ? 'Monaco, Menlo, "Ubuntu Mono", monospace'
+                    : settings.fontFamily === 'serif'
+                    ? 'Georgia, "Times New Roman", serif'
+                    : '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                  color: 'var(--text-secondary)',
+                  textAlign: 'right',
+                  userSelect: 'none',
+                  whiteSpace: 'pre',
+                  overflow: 'hidden',
+                  boxSizing: 'border-box'
+                }}>
+                  {getLineNumbers(note.content).map(lineNum => (
+                    <div key={lineNum} style={{ height: `${settings.fontSize * (settings.wordWrap ? 1.6 : 1.4)}px` }}>
+                      {lineNum}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <textarea
+                ref={textareaRef}
+                value={note.content}
+                onChange={(e) => handleContentChange(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onCompositionStart={handleCompositionStart}
+                onCompositionEnd={handleCompositionEnd}
+                onClick={handleTextareaClick}
+                placeholder={showPlaceholder ? `开始编写你的笔记...
+
+支持 Markdown 语法：
+# 标题
+**粗体** *斜体*
+- 列表项
+[链接](url)
+![图片](url)
+
+数学公式：
+行内公式：$E = mc^2$
+块级公式：
+$$
+\\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}
+$$
+
+快捷键：
+Tab - 增加缩进（4个空格）
+Shift+Tab - 减少缩进
+Enter - 智能换行（保持缩进/列表）` : ""}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  flex: 1,
+                  padding: '24px',
+                  paddingLeft: settings.showLineNumbers ? '12px' : '24px',
+                  border: 'none',
+                  outline: 'none',
+                  resize: 'none',
+                  fontSize: `${settings.fontSize}px`,
+                  lineHeight: settings.wordWrap ? '1.6' : '1.4',
+                  fontFamily: settings.fontFamily === 'mono' 
+                    ? 'Monaco, Menlo, "Ubuntu Mono", monospace'
+                    : settings.fontFamily === 'serif'
+                    ? 'Georgia, "Times New Roman", serif'
+                    : '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                  backgroundColor: 'transparent',
+                  color: 'var(--text-primary)',
+                  boxSizing: 'border-box',
+                  whiteSpace: settings.wordWrap ? 'pre-wrap' : 'pre',
+                  wordWrap: settings.wordWrap ? 'break-word' : 'normal',
+                }}
+              />
+            </div>
+            <div style={{ 
+              flex: 1, 
+              padding: '24px', 
+              lineHeight: '1.6',
+              overflow: 'auto',
+              height: '100%',
+              boxSizing: 'border-box'
+            }}>
+              <ReactMarkdown
+                className="markdown-content"
+                remarkPlugins={[remarkGfm, remarkMath]}
+                rehypePlugins={[rehypeKatex, rehypeHighlight]}
+              >
+                {note.content}
+              </ReactMarkdown>
+            </div>
+          </>
+        ) : isPreview ? (
+          // 纯预览模式
+          <div style={{ 
+            padding: '24px', 
+            lineHeight: '1.6',
+            flex: 1,
+            overflow: 'auto',
+            height: '100%',
+            boxSizing: 'border-box'
+          }}>
+            <ReactMarkdown
+              className="markdown-content"
+              remarkPlugins={[remarkGfm, remarkMath]}
+              rehypePlugins={[rehypeKatex, rehypeHighlight]}
+            >
+              {note.content}
+            </ReactMarkdown>
+          </div>
+        ) : (
+          // 纯编辑模式
+          <div style={{ 
+            display: 'flex',
+            flexDirection: 'row',
+            height: '100%',
+            flex: 1
+          }}>
+            {settings.showLineNumbers && (
+              <div style={{
+                width: '50px',
+                backgroundColor: 'var(--bg-secondary)',
+                borderRight: '1px solid var(--border-color)',
+                padding: '24px 8px',
+                fontSize: `${settings.fontSize}px`,
+                lineHeight: settings.wordWrap ? '1.6' : '1.4',
+                fontFamily: settings.fontFamily === 'mono' 
+                  ? 'Monaco, Menlo, "Ubuntu Mono", monospace'
+                  : settings.fontFamily === 'serif'
+                  ? 'Georgia, "Times New Roman", serif'
+                  : '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                color: 'var(--text-secondary)',
+                textAlign: 'right',
+                userSelect: 'none',
+                whiteSpace: 'pre',
+                overflow: 'hidden',
+                boxSizing: 'border-box'
+              }}>
+                {getLineNumbers(note.content).map(lineNum => (
+                  <div key={lineNum} style={{ height: `${settings.fontSize * (settings.wordWrap ? 1.6 : 1.4)}px` }}>
+                    {lineNum}
+                  </div>
+                ))}
+              </div>
+            )}
+            <textarea
+              ref={textareaRef}
+              value={note.content}
+              onChange={(e) => handleContentChange(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onCompositionStart={handleCompositionStart}
+              onCompositionEnd={handleCompositionEnd}
+              onClick={handleTextareaClick}
+              placeholder={showPlaceholder ? `开始编写你的笔记...
+
+支持 Markdown 语法：
+# 标题
+**粗体** *斜体*
+- 列表项
+[链接](url)
+![图片](url)
+
+数学公式：
+行内公式：$E = mc^2$
+块级公式：
+$$
+\\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}
+$$
+
+快捷键：
+Tab - 增加缩进（4个空格）
+Shift+Tab - 减少缩进
+Enter - 智能换行（保持缩进/列表）` : ""}
+              style={{
+                width: '100%',
+                height: '100%',
+                flex: 1,
+                padding: '24px',
+                paddingLeft: settings.showLineNumbers ? '12px' : '24px',
+                border: 'none',
+                outline: 'none',
+                resize: 'none',
+                fontSize: `${settings.fontSize}px`,
+                lineHeight: settings.wordWrap ? '1.6' : '1.4',
+                fontFamily: settings.fontFamily === 'mono' 
+                  ? 'Monaco, Menlo, "Ubuntu Mono", monospace'
+                  : settings.fontFamily === 'serif'
+                  ? 'Georgia, "Times New Roman", serif'
+                  : '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                backgroundColor: 'transparent',
+                color: 'var(--text-primary)',
+                boxSizing: 'border-box',
+                whiteSpace: settings.wordWrap ? 'pre-wrap' : 'pre',
+                wordWrap: settings.wordWrap ? 'break-word' : 'normal',
+              }}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* 隐藏的文件输入 */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        style={{ display: 'none' }}
+        onChange={handleFileUpload}
+      />
+    </div>
+  );
+};
+
+export default Editor;

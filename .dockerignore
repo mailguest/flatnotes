@@ -1,0 +1,63 @@
+# 依赖目录
+node_modules
+npm-debug.log*
+
+# 构建输出
+dist
+build
+
+# 环境文件
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# 日志文件
+logs
+*.log
+
+# 运行时数据
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# 覆盖率目录
+coverage
+.nyc_output
+
+# IDE 文件
+.vscode
+.idea
+*.swp
+*.swo
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# Git 文件
+.git
+.gitignore
+
+# Docker 文件
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# 临时文件
+tmp
+temp
+
+# 测试文件
+test
+tests
+__tests__
+
+# 文档
+README.md
+*.md
+
+# 数据文件（在 docker-compose 中通过卷挂载）
+data/notes-backup-*.json
