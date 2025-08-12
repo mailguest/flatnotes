@@ -41,7 +41,6 @@ let forceSyncTimer: NodeJS.Timeout | null = null;
 let dataCheckTimer: NodeJS.Timeout | null = null;
 let pendingChanges = 0;
 let lastSyncTime = 0;
-let lastServerDataCheck = 0;
 let isOnline = navigator.onLine;
 
 // 数据更新回调
@@ -233,13 +232,13 @@ const processAttachmentsInContent = (content: string, noteName: string): string 
   let processedContent = content;
   
   // 处理base64数据的图片引用
-  processedContent = processedContent.replace(/!\[([^\]]*)\]\(data:[^)]+\)/g, (match, altText) => {
+  processedContent = processedContent.replace(/!\[([^\]]*)\]\(data:[^)]+\)/g, (_, altText) => {
     const fileName = altText || 'attachment';
     return `![${altText}](./${noteName}_attachments/${fileName})`;
   });
   
   // 处理/uploads/路径的链接引用（包括图片和文件）
-  processedContent = processedContent.replace(/(!?)\[([^\]]*)\]\(\/uploads\/([^)]+)\)/g, (match, isImage, linkText, filePath) => {
+  processedContent = processedContent.replace(/(!?)\[([^\]]*)\]\(\/uploads\/([^)]+)\)/g, (_, isImage, linkText, filePath) => {
     // 提取文件名（去掉时间戳前缀，如果有的话）
     const fileName = filePath.includes('-') ? filePath.split('-').slice(1).join('-') : filePath;
     // 如果没有扩展名，尝试从原始文件名推断
@@ -664,8 +663,6 @@ const checkServerDataUpdates = async (): Promise<void> => {
       
       console.log('✅ 服务器数据已同步到本地');
     }
-    
-    lastServerDataCheck = Date.now();
   } catch (error) {
     console.error('检查服务器数据更新失败:', error);
   }

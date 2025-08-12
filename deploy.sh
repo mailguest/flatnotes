@@ -36,16 +36,48 @@ check_requirements() {
     print_message "检查系统要求..."
     
     if ! command -v docker &> /dev/null; then
-        print_error "Docker 未安装，请先安装 Docker"
+        print_error "Docker 未安装"
+        echo ""
+        echo "请按照以下步骤安装 Docker:"
+        echo "1. 访问 https://docs.docker.com/get-docker/"
+        echo "2. 下载适合您操作系统的 Docker Desktop"
+        echo "3. 安装并启动 Docker Desktop"
+        echo "4. 重新运行此脚本"
+        echo ""
+        echo "macOS 用户也可以使用 Homebrew 安装:"
+        echo "  brew install --cask docker"
+        echo ""
         exit 1
     fi
     
-    if ! command -v docker-compose &> /dev/null; then
-        print_error "Docker Compose 未安装，请先安装 Docker Compose"
+    # 检查Docker是否运行
+    if ! docker info &> /dev/null; then
+        print_error "Docker 已安装但未运行"
+        echo "请启动 Docker Desktop 或 Docker 服务后重试"
         exit 1
     fi
     
-    print_message "✅ Docker 和 Docker Compose 已安装"
+    # 检查Docker Compose
+    if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
+        print_error "Docker Compose 未安装"
+        echo ""
+        echo "请安装 Docker Compose:"
+        echo "1. 如果使用 Docker Desktop，Compose 已包含在内"
+        echo "2. 如果使用独立 Docker，请访问: https://docs.docker.com/compose/install/"
+        echo ""
+        exit 1
+    fi
+    
+    print_message "✅ Docker 和 Docker Compose 已安装并运行"
+}
+
+# 获取Docker Compose命令
+get_docker_compose_cmd() {
+    if command -v docker-compose &> /dev/null; then
+        echo "docker-compose"
+    else
+        echo "docker compose"
+    fi
 }
 
 # 确保数据目录存在
@@ -69,8 +101,10 @@ deploy_dev() {
     check_requirements
     ensure_data_dir
     
+    local DOCKER_COMPOSE_CMD=$(get_docker_compose_cmd)
+    
     print_message "构建并启动开发容器..."
-    docker-compose --profile dev up --build flatnotes-dev
+    $DOCKER_COMPOSE_CMD --profile dev up --build flatnotes-dev
 }
 
 # 生产环境部署
@@ -81,20 +115,22 @@ deploy_prod() {
     check_requirements
     ensure_data_dir
     
+    local DOCKER_COMPOSE_CMD=$(get_docker_compose_cmd)
+    
     print_message "构建并启动生产容器..."
-    docker-compose -f docker-compose.prod.yml up --build -d
+    $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml up --build -d
     
     print_message "等待服务启动..."
     sleep 10
     
     # 检查服务状态
-    if docker-compose -f docker-compose.prod.yml ps | grep -q "Up"; then
+    if $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml ps | grep -q "Up"; then
         print_message "✅ 服务启动成功！"
         print_message "🌐 访问地址: http://localhost:3001"
         print_message "📊 查看日志: ./deploy.sh logs"
     else
         print_error "❌ 服务启动失败，请查看日志"
-        docker-compose -f docker-compose.prod.yml logs
+        $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml logs
     fi
 }
 
@@ -103,13 +139,15 @@ stop_services() {
     print_header
     print_message "停止所有服务..."
     
+    local DOCKER_COMPOSE_CMD=$(get_docker_compose_cmd)
+    
     # 停止生产环境
     if [ -f "docker-compose.prod.yml" ]; then
-        docker-compose -f docker-compose.prod.yml down
+        $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml down
     fi
     
     # 停止开发环境
-    docker-compose --profile dev down
+    $DOCKER_COMPOSE_CMD --profile dev down
     
     print_message "✅ 所有服务已停止"
 }
@@ -119,10 +157,12 @@ show_logs() {
     print_header
     print_message "显示服务日志..."
     
-    if docker-compose -f docker-compose.prod.yml ps | grep -q "Up"; then
-        docker-compose -f docker-compose.prod.yml logs -f --tail=100
-    elif docker-compose --profile dev ps | grep -q "Up"; then
-        docker-compose --profile dev logs -f --tail=100
+    local DOCKER_COMPOSE_CMD=$(get_docker_compose_cmd)
+    
+    if $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml ps | grep -q "Up"; then
+        $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml logs -f --tail=100
+    elif $DOCKER_COMPOSE_CMD --profile dev ps | grep -q "Up"; then
+        $DOCKER_COMPOSE_CMD --profile dev logs -f --tail=100
     else
         print_warning "没有运行中的服务"
     fi

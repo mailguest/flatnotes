@@ -1,10 +1,8 @@
 import React, { useRef } from 'react';
 import { Tag, Trash2 } from 'lucide-react';
-import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Note, Category } from '../types';
-import { formatDate } from '../utils/dateUtils';
 
 interface NoteListProps {
   notes: Note[];
@@ -101,17 +99,30 @@ const NoteList: React.FC<NoteListProps> = ({
           ...style,
           padding: '16px',
           borderBottom: '1px solid var(--border-color)',
-          cursor: 'pointer',
           backgroundColor: isSelected ? 'var(--accent-bg)' : 'transparent',
           transition: 'all 0.2s ease',
+          position: 'relative',
         }}
         {...attributes}
-        {...listeners}
-        onMouseDown={handleMouseDown}
-        onMouseUp={handleMouseUp}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
       >
+        {/* 拖拽区域 */}
+        <div
+          {...listeners}
+          onMouseDown={handleMouseDown}
+          onMouseUp={handleMouseUp}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          style={{
+            cursor: 'pointer',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: '50px', // 为删除按钮留出空间
+            bottom: 0,
+            zIndex: 1,
+          }}
+        />
+        
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
           <h3 style={{ 
             margin: 0, 
@@ -119,25 +130,38 @@ const NoteList: React.FC<NoteListProps> = ({
             fontWeight: '600',
             color: 'var(--text-primary)',
             lineHeight: '1.4',
+            position: 'relative',
+            zIndex: 2,
           }}>
             {note.title || '无标题'}
           </h3>
           <button
             onClick={(e) => {
               e.stopPropagation();
+              e.preventDefault();
+              console.log('删除按钮被点击:', note.id);
               onDeleteNote(note.id);
             }}
             style={{
               background: 'none',
               border: 'none',
               cursor: 'pointer',
-              padding: '4px',
+              padding: '8px',
               borderRadius: '4px',
               opacity: 0.6,
               color: 'var(--danger-color)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              zIndex: 10,
+              position: 'relative',
+              transition: 'opacity 0.2s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.opacity = '1';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.opacity = '0.6';
             }}
             title="删除笔记"
           >
@@ -153,6 +177,8 @@ const NoteList: React.FC<NoteListProps> = ({
           display: '-webkit-box',
           WebkitLineClamp: 2,
           WebkitBoxOrient: 'vertical',
+          position: 'relative',
+          zIndex: 2,
         }}>
           {note.content.replace(/[#*`]/g, '').substring(0, 100)}
           {note.content.length > 100 ? '...' : ''}
@@ -162,6 +188,8 @@ const NoteList: React.FC<NoteListProps> = ({
           justifyContent: 'space-between', 
           alignItems: 'center',
           marginTop: '12px',
+          position: 'relative',
+          zIndex: 2,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {category && (
@@ -194,11 +222,6 @@ const NoteList: React.FC<NoteListProps> = ({
         </div>
       </div>
     );
-  };
-
-  const getCategoryColor = (categoryId: string) => {
-    const category = categories.find(cat => cat.id === categoryId);
-    return category?.color || 'var(--text-secondary)';
   };
 
   const getCategoryName = (categoryId: string) => {

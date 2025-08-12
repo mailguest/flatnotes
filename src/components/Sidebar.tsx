@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Search, Plus, FolderPlus, Tag, X, Edit2, Trash2, Download, FileDown, Settings } from 'lucide-react';
+import { Search, Plus, FolderPlus, Tag, X, Trash2, Download, FileDown, Settings } from 'lucide-react';
 import { Note, Category } from '../types';
 import { exportNoteToMarkdown, exportAllNotesToMarkdown, isFileSystemAPISupported } from '../utils/storage';
-import { useSettings } from '../contexts/SettingsContext';
 
 interface SidebarProps {
   notes: Note[];
@@ -40,17 +38,14 @@ const Sidebar: React.FC<SidebarProps> = ({
   onDeleteNote,
   onSelectCategory,
   onCreateCategory,
-  onUpdateCategory,
   onDeleteCategory,
   onSearch,
   onTagFilter,
   onOpenSettings,
 }) => {
-  const { settings } = useSettings();
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryColor, setNewCategoryColor] = useState('var(--accent-color)');
-  const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 

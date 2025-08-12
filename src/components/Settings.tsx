@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Monitor, Sun, Moon, Type, Save, Download, Upload, Palette, Eye, Code } from 'lucide-react';
+import { X, Monitor, Sun, Moon, Save, Download, Upload, Palette, Eye, Code } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
 
 interface SettingsProps {
@@ -12,8 +12,7 @@ interface SettingsProps {
 const Settings: React.FC<SettingsProps> = ({ 
   isOpen, 
   onClose, 
-  storageMode, 
-  onStorageModeChange 
+  storageMode 
 }) => {
   const { settings, updateSettings, resetSettings, exportSettings, importSettings } = useSettings();
 

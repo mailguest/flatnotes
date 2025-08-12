@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   DndContext,
   DragEndEvent,
@@ -12,13 +12,12 @@ import { Settings } from 'lucide-react';
 import ControlPanel from './components/ControlPanel';
 import NoteList from './components/NoteList';
 import Editor from './components/Editor';
-import Sidebar from './components/Sidebar';
 import SyncStatus from './components/SyncStatus';
 import SettingsModal from './components/Settings';
 import { SettingsProvider, useSettings } from './contexts/SettingsContext';
 
 import { Note, Category, AppState, ViewMode } from './types';
-import { loadData, saveData, getDefaultCategories, createDefaultNote, initializeStorage, getStorageMode, setDataUpdateCallback, checkForDataUpdates } from './utils/storage';
+import { loadData, saveData, getDefaultCategories, createDefaultNote, initializeStorage, getStorageMode, setDataUpdateCallback } from './utils/storage';
 import { notesAPI, categoriesAPI } from './utils/api';
 
 const AppContent: React.FC = () => {
