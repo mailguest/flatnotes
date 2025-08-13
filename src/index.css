@@ -77,7 +77,6 @@ body {
 
 #root {
   height: 100vh;
-  display: flex;
 }
 
 /* 滚动条样式 */
@@ -381,4 +380,10 @@ textarea::-moz-placeholder {
 [data-theme="light"] .hljs {
   background-color: var(--bg-tertiary) !important;
   color: var(--text-primary) !important;
+}
+
+/* 旋转动画 */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }

@@ -79,6 +79,62 @@ npm run build
 npm run preview
 ```
 
+## Docker 部署
+
+### 使用 Docker Compose（推荐）
+
+#### 生产环境部署
+```bash
+# 使用生产配置
+docker-compose -f docker-compose.prod.yml up -d
+
+# 或者设置自定义密码
+AUTH_PASSWORD=your_secure_password docker-compose -f docker-compose.prod.yml up -d
+```
+
+#### 开发环境
+```bash
+# 启动开发环境
+docker-compose --profile dev up
+```
+
+### 环境变量配置
+
+应用支持以下环境变量：
+
+- `AUTH_PASSWORD`: 访问密码（默认：flatnotes123）
+- `JWT_SECRET`: JWT 密钥（可选，自动生成）
+- `PORT`: 服务器端口（默认：3001）
+- `NODE_ENV`: 运行环境（development/production）
+
+#### 配置自定义密码
+
+1. **通过环境变量**：
+   ```bash
+   export AUTH_PASSWORD=your_secure_password
+   docker-compose -f docker-compose.prod.yml up -d
+   ```
+
+2. **通过 .env 文件**：
+   ```bash
+   # 复制示例配置文件
+   cp .env.example .env
+   
+   # 编辑 .env 文件，设置你的密码
+   # AUTH_PASSWORD=your_secure_password
+   
+   # 启动服务
+   docker-compose -f docker-compose.prod.yml up -d
+   ```
+
+### 数据持久化
+
+Docker 部署会自动将数据目录挂载到宿主机的 `./data` 目录，确保数据持久化。
+
+### 访问应用
+
+部署完成后，访问 `http://localhost:3001` 即可使用应用。
+
 ## 使用指南
 
 ### 创建笔记

@@ -5,6 +5,21 @@ import path from 'path';
 import fs from 'fs/promises';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
+import dotenv from 'dotenv';
+
+// 加载.env文件
+dotenv.config();
+
+// 扩展 Express Request 类型
+declare global {
+  namespace Express {
+    interface Request {
+      user?: { authenticated: boolean; timestamp: number };
+    }
+  }
+}
 
 // 类型定义
 interface NoteMeta {
@@ -27,6 +42,12 @@ interface NoteOrder {
   order: number;
 }
 
+interface Category {
+  id: string;
+  name: string;
+  order: number;
+}
+
 interface CategoryOrder {
   id: string;
   order: number;
@@ -38,10 +59,54 @@ const __dirname = dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// 认证配置
+// 认证密码配置优先级：.env文件 > 环境变量 > 默认值
+const AUTH_PASSWORD = process.env.AUTH_PASSWORD || 'flatnotes123';
+const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex');
+const SESSION_DURATION = '7d'; // JWT token有效期
+
 // 中间件
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// 认证中间件
+function authenticateToken(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ error: '需要认证' });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
+    if (err) {
+      return res.status(403).json({ error: 'Token无效' });
+    }
+    req.user = user;
+    next();
+  });
+}
+
+// 检查是否需要认证的中间件
+function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
+  // 如果没有设置密码，则跳过认证
+  if (!AUTH_PASSWORD) {
+    return next();
+  }
+  
+  // 登录、验证和健康检查接口不需要认证
+  if (req.path === '/api/auth/login' || req.path === '/api/auth/verify' || req.path === '/api/health') {
+    return next();
+  }
+  
+  // API接口需要认证
+  if (req.path.startsWith('/api/')) {
+    return authenticateToken(req, res, next);
+  }
+  
+  next();
+}
 
 // 数据存储目录
 const DATA_DIR = path.join(__dirname, '../data');
@@ -142,7 +207,7 @@ async function saveNotesMeta(notesMeta: NoteMeta[]) {
 }
 
 // 读取笔记内容
-async function readNoteContent(noteId) {
+async function readNoteContent(noteId: string): Promise<string> {
   try {
     const contentFile = path.join(NOTES_CONTENT_DIR, `${noteId}.md`);
     return await fs.readFile(contentFile, 'utf-8');
@@ -152,13 +217,13 @@ async function readNoteContent(noteId) {
 }
 
 // 保存笔记内容
-async function saveNoteContent(noteId, content) {
+async function saveNoteContent(noteId: string, content: string): Promise<void> {
   const contentFile = path.join(NOTES_CONTENT_DIR, `${noteId}.md`);
   await fs.writeFile(contentFile, content || '');
 }
 
 // 删除笔记内容文件
-async function deleteNoteContent(noteId) {
+async function deleteNoteContent(noteId: string): Promise<void> {
   try {
     const contentFile = path.join(NOTES_CONTENT_DIR, `${noteId}.md`);
     await fs.unlink(contentFile);
@@ -187,6 +252,37 @@ const upload = multer({
 
 // 静态文件服务
 app.use('/uploads', express.static(UPLOADS_DIR));
+
+// 登录接口（无需认证）
+app.post('/api/auth/login', (req, res) => {
+  const { password } = req.body;
+  
+  if (!password || password !== AUTH_PASSWORD) {
+    return res.status(401).json({ error: '密码错误' });
+  }
+  
+  const token = jwt.sign(
+    { authenticated: true, timestamp: Date.now() },
+    JWT_SECRET,
+    { expiresIn: SESSION_DURATION }
+  );
+  
+  res.json({ token, message: '登录成功' });
+});
+
+// 获取认证配置信息（无需认证）
+app.get('/api/auth/config', (req, res) => {
+  const isUsingDefaultPassword = AUTH_PASSWORD === 'flatnotes123';
+  res.json({ isUsingDefaultPassword });
+});
+
+// 验证token接口
+app.get('/api/auth/verify', authenticateToken, (req, res) => {
+  res.json({ valid: true, user: req.user });
+});
+
+// 应用认证中间件
+app.use(requireAuth);
 
 // 生产环境下提供前端静态文件服务
 if (process.env.NODE_ENV === 'production') {
@@ -462,17 +558,17 @@ app.put('/api/categories/reorder', async (req, res) => {
     const { categoryOrders } = req.body;
     
     // 读取现有分类
-    let categories = [];
+    let categories: Category[] = [];
     try {
       const data = await fs.readFile(CATEGORIES_FILE, 'utf-8');
       categories = JSON.parse(data);
     } catch {
       return res.status(404).json({ error: '分类文件不存在' });
     }
-    
+
     // 更新分类排序
     categoryOrders.forEach(({ id, order }: CategoryOrder) => {
-      const categoryIndex = categories.findIndex(category => category.id === id);
+      const categoryIndex = categories.findIndex((category: Category) => category.id === id);
       if (categoryIndex !== -1) {
         categories[categoryIndex].order = order;
       }

@@ -6,16 +6,36 @@ const API_BASE_URL = '/api';
 async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
   
+  // 获取认证token
+  const token = localStorage.getItem('auth_token');
+  
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...options.headers as Record<string, string>,
+  };
+  
+  // 如果有token且不是登录接口，则添加Authorization头
+  if (token && !endpoint.includes('/auth/login')) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  
   const response = await fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
+    headers,
     ...options,
   });
 
+  // 如果是401错误（未认证），清除本地token
+  if (response.status === 401) {
+    localStorage.removeItem('auth_token');
+    // 如果不是登录接口，重新加载页面到登录页
+    if (!endpoint.includes('/auth/login')) {
+      window.location.reload();
+    }
+  }
+
   if (!response.ok) {
-    throw new Error(`API请求失败: ${response.status} ${response.statusText}`);
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `API请求失败: ${response.status} ${response.statusText}`);
   }
 
   return response.json();

@@ -4,6 +4,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { Search, Plus, FolderPlus, Tag, X, Trash2, Download, FileDown, Settings } from 'lucide-react';
 import { Note, Category } from '../types';
 import { exportNoteToMarkdown, exportAllNotesToMarkdown, isFileSystemAPISupported } from '../utils/storage';
+import Logo from './Logo';
 
 interface SidebarProps {
   notes: Note[];
@@ -168,9 +169,17 @@ const Sidebar: React.FC<SidebarProps> = ({
       {/* 头部 */}
       <div style={{ padding: '16px', borderBottom: '1px solid var(--border-color)' }}>
         <div style={{ marginBottom: '16px' }}>
-          <h1 style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0, marginBottom: '4px' }}>
-            FlatNotes
-          </h1>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            marginBottom: '4px'
+          }}>
+            <Logo size={20} />
+            <h1 style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0 }}>
+              FlatNotes
+            </h1>
+          </div>
           <div style={{ 
             fontSize: '12px', 
             color: 'var(--text-secondary)',

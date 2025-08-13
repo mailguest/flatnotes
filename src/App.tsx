@@ -14,7 +14,10 @@ import NoteList from './components/NoteList';
 import Editor from './components/Editor';
 import SyncStatus from './components/SyncStatus';
 import SettingsModal from './components/Settings';
+import Login from './components/Login';
+import Logo from './components/Logo';
 import { SettingsProvider, useSettings } from './contexts/SettingsContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 import { Note, Category, AppState, ViewMode } from './types';
 import { loadData, saveData, getDefaultCategories, createDefaultNote, initializeStorage, getStorageMode, setDataUpdateCallback } from './utils/storage';
@@ -22,6 +25,7 @@ import { notesAPI, categoriesAPI } from './utils/api';
 
 const AppContent: React.FC = () => {
   const { settings, updateSettings } = useSettings();
+  const { isAuthenticated, isLoading: authLoading, login } = useAuth();
   const [state, setState] = useState<AppState>({
     notes: [],
     categories: [],
@@ -37,6 +41,10 @@ const AppContent: React.FC = () => {
 
   // 初始化存储并加载数据
   useEffect(() => {
+    // 只有在认证成功后才初始化应用
+    if (!isAuthenticated || authLoading) {
+      return;
+    }
     const initializeApp = async () => {
       try {
         setIsLoading(true);
@@ -85,7 +93,7 @@ const AppContent: React.FC = () => {
     };
 
     initializeApp();
-  }, []);
+  }, [isAuthenticated, authLoading]);
 
   // 保存数据（防抖）- 只在内容真正变化时保存
   useEffect(() => {
@@ -436,6 +444,26 @@ const AppContent: React.FC = () => {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [settings]);
 
+  // 认证状态检查
+  if (authLoading) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        backgroundColor: 'var(--bg-primary)',
+        color: 'var(--text-primary)'
+      }}>
+        <div>正在验证身份...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Login onLogin={login} />;
+  }
+
   // 加载状态
   if (isLoading) {
     return (
@@ -539,9 +567,17 @@ const AppContent: React.FC = () => {
               {/* 顶部控制区域 */}
               <div style={{ padding: '16px', borderBottom: '1px solid var(--border-color)' }}>
                 <div style={{ marginBottom: '16px' }}>
-                  <h1 style={{ fontSize: '20px', fontWeight: 'bold', margin: 0, marginBottom: '4px', color: 'var(--text-primary)' }}>
-                    FlatNotes
-                  </h1>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    marginBottom: '4px'
+                  }}>
+                    <Logo size={20} />
+                    <h1 style={{ fontSize: '20px', fontWeight: 'bold', margin: 0, color: 'var(--text-primary)' }}>
+                      FlatNotes
+                    </h1>
+                  </div>
                   <div style={{ 
                     fontSize: '12px', 
                     color: 'var(--text-secondary)',
@@ -817,9 +853,11 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <SettingsProvider>
-      <AppContent />
-    </SettingsProvider>
+    <AuthProvider>
+      <SettingsProvider>
+        <AppContent />
+      </SettingsProvider>
+    </AuthProvider>
   );
 };
 

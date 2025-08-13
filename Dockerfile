@@ -69,6 +69,8 @@ EXPOSE 3001
 # 设置环境变量
 ENV NODE_ENV=production
 ENV PORT=3001
+# 设置默认认证密码（建议在部署时通过环境变量覆盖）
+ENV AUTH_PASSWORD=flatnotes123
 
 # 生产模式启动命令
 CMD ["tsx", "server/index.ts"]

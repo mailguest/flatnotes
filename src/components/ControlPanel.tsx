@@ -5,6 +5,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { Search, Plus, FolderPlus, Tag, X, Edit2, Trash2, Download, FileDown, Settings } from 'lucide-react';
 import { Note, Category } from '../types';
 import { exportNoteToMarkdown, exportAllNotesToMarkdown, isFileSystemAPISupported } from '../utils/storage';
+import Logo from './Logo';
 
 interface ControlPanelProps {
   notes: Note[];
@@ -301,16 +302,22 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         borderBottom: '1px solid var(--border-color)',
         backgroundColor: 'var(--bg-secondary)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <h1 style={{
-            fontSize: '20px',
-            fontWeight: 'bold',
-            color: 'var(--text-primary)',
-            margin: 0,
-            textAlign: 'center'
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
           }}>
-            FlatNotes
-          </h1>
+            <Logo size={20} />
+            <h1 style={{
+              fontSize: '20px',
+              fontWeight: 'bold',
+              color: 'var(--text-primary)',
+              margin: 0
+            }}>
+              FlatNotes
+            </h1>
+          </div>
         </div>
       </div>
 

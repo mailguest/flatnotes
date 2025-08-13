@@ -1,6 +1,7 @@
 import React from 'react';
-import { X, Monitor, Sun, Moon, Save, Download, Upload, Palette, Eye, Code } from 'lucide-react';
+import { X, Monitor, Sun, Moon, Save, Download, Upload, Palette, Eye, Code, LogOut } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
+import { useAuth } from '../contexts/AuthContext';
 
 interface SettingsProps {
   isOpen: boolean;
@@ -15,6 +16,7 @@ const Settings: React.FC<SettingsProps> = ({
   storageMode 
 }) => {
   const { settings, updateSettings, resetSettings, exportSettings, importSettings } = useSettings();
+  const { logout } = useAuth();
 
   const handleSettingChange = (key: keyof typeof settings, value: any) => {
     updateSettings({ [key]: value });
@@ -35,6 +37,13 @@ const Settings: React.FC<SettingsProps> = ({
   const handleResetSettings = () => {
     if (confirm('确定要重置所有设置吗？')) {
       resetSettings();
+    }
+  };
+
+  const handleLogout = () => {
+    if (confirm('确定要退出登录吗？')) {
+      logout();
+      onClose();
     }
   };
 
@@ -448,6 +457,36 @@ const Settings: React.FC<SettingsProps> = ({
               }}
             >
               重置设置
+            </button>
+
+            <button
+              onClick={handleLogout}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: 'var(--bg-primary)',
+                color: 'var(--text-secondary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--hover-bg)';
+                e.currentTarget.style.borderColor = 'var(--warning-color)';
+                e.currentTarget.style.color = 'var(--warning-color)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--bg-primary)';
+                e.currentTarget.style.borderColor = 'var(--border-color)';
+                e.currentTarget.style.color = 'var(--text-secondary)';
+              }}
+            >
+              <LogOut size={14} />
+              退出登录
             </button>
           </div>
         </div>

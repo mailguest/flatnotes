@@ -17,6 +17,8 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3001
+      # 认证密码 - 建议修改为自定义密码
+      - AUTH_PASSWORD=flatnotes123
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/health"]
@@ -44,6 +46,8 @@ services:
     environment:
       - NODE_ENV=development
       - PORT=3001
+      # 认证密码 - 开发环境
+      - AUTH_PASSWORD=flatnotes123
     restart: unless-stopped
     profiles:
       - dev
