@@ -14,11 +14,11 @@ services:
       - ./data:/app/data
       # 挂载上传目录
       - ./data/uploads:/app/data/uploads
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
       - PORT=3001
-      # 认证密码 - 建议修改为自定义密码
-      - AUTH_PASSWORD=flatnotes123
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3001/api/health || curl -f http://localhost:3001/api/health"]
