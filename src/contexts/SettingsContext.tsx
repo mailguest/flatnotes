@@ -4,7 +4,7 @@ export interface AppSettings {
   theme: 'light' | 'dark' | 'auto';
   fontSize: number;
   fontFamily: 'system' | 'mono' | 'serif';
-  editorMode: 'edit' | 'preview' | 'split';
+  editorMode: 'edit' | 'preview';
   autoSave: boolean;
   autoSaveInterval: number;
   showLineNumbers: boolean;

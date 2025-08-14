@@ -6,12 +6,14 @@ import { Search, Plus, FolderPlus, Tag, X, Edit2, Trash2, Download, FileDown, Se
 import { Note, Category } from '../types';
 import { exportNoteToMarkdown, exportAllNotesToMarkdown, isFileSystemAPISupported } from '../utils/storage';
 import Logo from './Logo';
+import packageJson from '../../package.json';
 
 interface ControlPanelProps {
   notes: Note[];
   categories: Category[];
   selectedCategory: string | null;
   searchQuery: string;
+  searchInput: string;
   selectedTags: string[];
   selectedNoteId: string | null;
   storageMode?: 'server' | 'local';
@@ -30,6 +32,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   categories,
   selectedCategory,
   searchQuery,
+  searchInput,
   selectedTags,
   selectedNoteId,
   storageMode = 'local',
@@ -298,46 +301,54 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
     }}>
       {/* 应用标题 */}
       <div style={{ 
-        padding: '17px 16px', 
+        padding: '12px 16px', 
+        height: '60px',
+        boxSizing: 'border-box',
         borderBottom: '1px solid var(--border-color)',
         backgroundColor: 'var(--bg-secondary)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-          }}>
-            <Logo size={20} />
-            <h1 style={{
-              fontSize: '20px',
-              fontWeight: 'bold',
-              color: 'var(--text-primary)',
-              margin: 0
-            }}>
-              FlatNotes
-            </h1>
-          </div>
-        </div>
-      </div>
-
-      {/* 状态区域 */}
-      <div style={{ padding: '17px 16px', borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            fontSize: '12px',
-            color: 'var(--text-secondary)'
-          }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '100%' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <div style={{
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              backgroundColor: storageMode === 'server' ? 'var(--success-color)' : 'var(--warning-color)',
-            }}></div>
-            {storageMode === 'server' ? '服务端存储' : '本地存储'}
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              marginBottom: '2px'
+            }}>
+              <Logo size={20} />
+              <h1 style={{
+                fontSize: '20px',
+                fontWeight: 'bold',
+                color: 'var(--text-primary)',
+                margin: 0
+              }}>
+                FlatNotes
+              </h1>
+            </div>
+            <div style={{
+              fontSize: '10px',
+              color: 'var(--text-secondary)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              marginLeft: '28px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <div style={{
+                  width: '6px',
+                  height: '6px',
+                  borderRadius: '50%',
+                  backgroundColor: storageMode === 'server' ? 'var(--success-color)' : 'var(--warning-color)',
+                }}></div>
+                {storageMode === 'server' ? '服务端存储版本' : '本地存储版本'}
+              </div>
+              <div style={{
+                color: 'var(--text-tertiary)',
+                fontSize: '9px'
+              }}>
+                v{packageJson.version}
+              </div>
+            </div>
           </div>
           {onOpenSettings && (
             <button
@@ -385,8 +396,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           <input
             type="text"
             placeholder="搜索笔记..."
-            value={searchQuery}
-            onChange={(e) => onSearch(e.target.value)}
+            value={searchInput}
+                onChange={(e) => onSearch(e.target.value)}
             style={{
               width: '100%',
               padding: '8px 36px 8px 36px',

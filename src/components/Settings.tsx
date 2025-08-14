@@ -259,8 +259,7 @@ const Settings: React.FC<SettingsProps> = ({
               <div style={{ display: 'flex', gap: '8px' }}>
                 {[
                   { value: 'edit', label: '编辑', icon: Code },
-                  { value: 'preview', label: '预览', icon: Eye },
-                  { value: 'split', label: '分屏', icon: Monitor }
+                  { value: 'preview', label: '预览', icon: Eye }
                 ].map(({ value, label, icon: Icon }) => (
                   <button
                     key={value}

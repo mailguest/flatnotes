@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   DndContext,
   DragEndEvent,
@@ -146,9 +146,9 @@ const AppContent: React.FC = () => {
     }));
   };
 
-  const handleSelectNote = (noteId: string) => {
+  const handleSelectNote = useCallback((noteId: string) => {
     setState(prev => ({ ...prev, selectedNoteId: noteId }));
-  };
+  }, []);
 
   const handleUpdateNote = (noteId: string, updates: Partial<Note>) => {
     setState(prev => ({
@@ -161,13 +161,13 @@ const AppContent: React.FC = () => {
     }));
   };
 
-  const handleDeleteNote = (noteId: string) => {
+  const handleDeleteNote = useCallback((noteId: string) => {
     setState(prev => ({
       ...prev,
       notes: prev.notes.filter(note => note.id !== noteId),
       selectedNoteId: prev.selectedNoteId === noteId ? null : prev.selectedNoteId,
     }));
-  };
+  }, []);
 
   const handleSelectCategory = (categoryId: string | null) => {
     setState(prev => ({ ...prev, selectedCategory: categoryId }));
@@ -210,9 +210,34 @@ const AppContent: React.FC = () => {
     }));
   };
 
+  // 防抖搜索优化
+  const [searchInput, setSearchInput] = useState('');
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const handleSearch = (query: string) => {
-    setState(prev => ({ ...prev, searchQuery: query }));
+    setSearchInput(query);
+    
+    // 清除之前的定时器
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    // 设置新的防抖定时器
+    searchTimeoutRef.current = setTimeout(() => {
+      setState(prev => ({ ...prev, searchQuery: query }));
+    }, 300); // 300ms防抖延迟
   };
+
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
+
+
 
   const handleTagFilter = (tags: string[]) => {
     setState(prev => ({ ...prev, selectedTags: tags }));
@@ -382,7 +407,7 @@ const AppContent: React.FC = () => {
 
   // 计算当前编辑器模式
   const isPreview = settings.editorMode === 'preview';
-  const isSplit = settings.editorMode === 'split';
+
 
   // 全局快捷键支持
   useEffect(() => {
@@ -395,9 +420,7 @@ const AppContent: React.FC = () => {
           event.preventDefault();
           if (settings.editorMode === 'edit') {
             updateSettings({ editorMode: 'preview' });
-          } else if (settings.editorMode === 'preview') {
-            updateSettings({ editorMode: 'split' });
-          } else if (settings.editorMode === 'split') {
+          } else {
             updateSettings({ editorMode: 'edit' });
           }
           return;
@@ -513,13 +536,10 @@ const AppContent: React.FC = () => {
                 note={selectedNote}
                 onUpdateNote={handleUpdateNote}
                 isPreview={isPreview}
-                isSplit={isSplit}
                 onTogglePreview={() => {
                    if (settings.editorMode === 'edit') {
                      updateSettings({ editorMode: 'preview' });
-                   } else if (settings.editorMode === 'preview') {
-                     updateSettings({ editorMode: 'split' });
-                   } else if (settings.editorMode === 'split') {
+                   } else {
                      updateSettings({ editorMode: 'edit' });
                    }
                  }}
@@ -692,13 +712,10 @@ const AppContent: React.FC = () => {
                 note={selectedNote}
                 onUpdateNote={handleUpdateNote}
                 isPreview={isPreview}
-                isSplit={isSplit}
                 onTogglePreview={() => {
                     if (settings.editorMode === 'edit') {
                       updateSettings({ editorMode: 'preview' });
-                    } else if (settings.editorMode === 'preview') {
-                      updateSettings({ editorMode: 'split' });
-                    } else if (settings.editorMode === 'split') {
+                    } else {
                       updateSettings({ editorMode: 'edit' });
                     }
                   }}
@@ -740,6 +757,7 @@ const AppContent: React.FC = () => {
                categories={state.categories}
                selectedCategory={state.selectedCategory}
                searchQuery={state.searchQuery}
+               searchInput={searchInput}
                selectedTags={state.selectedTags}
                selectedNoteId={state.selectedNoteId}
                storageMode={storageMode}
@@ -781,16 +799,13 @@ const AppContent: React.FC = () => {
                 note={selectedNote}
                 onUpdateNote={handleUpdateNote}
                 isPreview={isPreview}
-                isSplit={isSplit}
                 onTogglePreview={() => {
-                     if (settings.editorMode === 'edit') {
-                       updateSettings({ editorMode: 'preview' });
-                     } else if (settings.editorMode === 'preview') {
-                       updateSettings({ editorMode: 'split' });
-                     } else if (settings.editorMode === 'split') {
-                       updateSettings({ editorMode: 'edit' });
-                     }
-                   }}
+                 if (settings.editorMode === 'edit') {
+                   updateSettings({ editorMode: 'preview' });
+                 } else {
+                   updateSettings({ editorMode: 'edit' });
+                 }
+               }}
               />
             </div>
 

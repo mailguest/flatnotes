@@ -3,17 +3,7 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
 
-// SVG 图标路径常量
-const LOGO_SVG_PATHS = {
-  circle: 'M16,16 m-15,0 a15,15 0 1,1 30,0 a15,15 0 1,1 -30,0',
-  rect: 'M8,7 h16 a2,2 0 0,1 2,2 v14 a2,2 0 0,1 -2,2 h-16 a2,2 0 0,1 -2,-2 v-14 a2,2 0 0,1 2,-2 z',
-  lines: [
-    'M11,12 L21,12',
-    'M11,16 L19,16', 
-    'M11,20 L17,20'
-  ],
-  binding: 'M10.5,9 L10.5,23'
-};
+
 
 // 调整颜色亮度的辅助函数
 function adjustColor(color: string, amount: number): string {

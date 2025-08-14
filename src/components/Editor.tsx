@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import rehypeHighlight from 'rehype-highlight';
-import { Eye, Edit, Upload, Tag, X, Download } from 'lucide-react';
+import { Eye, Edit, Upload, Tag, X, Download, Paperclip } from 'lucide-react';
 import { Note, Attachment } from '../types';
 import { uploadAPI, checkServerAvailability } from '../utils/api';
 import { useSettings } from '../contexts/SettingsContext';
@@ -13,16 +13,36 @@ interface EditorProps {
   note: Note | undefined;
   onUpdateNote: (noteId: string, updates: Partial<Note>) => void;
   isPreview?: boolean;
-  isSplit?: boolean;
   onTogglePreview?: () => void;
 }
 
-const Editor: React.FC<EditorProps> = ({ note, onUpdateNote, isPreview = false, isSplit = false, onTogglePreview }) => {
+const Editor: React.FC<EditorProps> = ({ note, onUpdateNote, isPreview = false, onTogglePreview }) => {
   const { settings } = useSettings();
   const [showTagInput, setShowTagInput] = useState(false);
   const [newTag, setNewTag] = useState('');
   const [isComposing, setIsComposing] = useState(false); // 跟踪中文输入法状态
   const [showPlaceholder, setShowPlaceholder] = useState(true); // 控制placeholder显示
+  const [showAttachments, setShowAttachments] = useState(false); // 控制附件弹出列表显示
+  
+  // 处理点击外部关闭附件弹出列表
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showAttachments) {
+        const target = event.target as Element;
+        const attachmentButton = target.closest('[data-attachment-button]');
+        const attachmentPopup = target.closest('[data-attachment-popup]');
+        
+        if (!attachmentButton && !attachmentPopup) {
+          setShowAttachments(false);
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showAttachments]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
@@ -450,12 +470,14 @@ const Editor: React.FC<EditorProps> = ({ note, onUpdateNote, isPreview = false, 
     }}>
       {/* 头部工具栏 */}
       <div style={{
-        padding: '17px 16px',
+        padding: '12px 16px',
         borderBottom: '1px solid var(--border-color)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         backgroundColor: 'var(--bg-tertiary)',
+        height: '60px',
+        boxSizing: 'border-box',
       }}>
         <div style={{ flex: 1 }}>
           <input
@@ -478,7 +500,7 @@ const Editor: React.FC<EditorProps> = ({ note, onUpdateNote, isPreview = false, 
           <button
             onClick={() => fileInputRef.current?.click()}
             style={{
-              padding: '6px 10px',
+              padding: '4px 8px',
               backgroundColor: 'var(--bg-secondary)',
               border: '1px solid var(--border-color)',
               borderRadius: '6px',
@@ -486,9 +508,10 @@ const Editor: React.FC<EditorProps> = ({ note, onUpdateNote, isPreview = false, 
               display: 'flex',
               alignItems: 'center',
               gap: '4px',
-              fontSize: '14px',
+              fontSize: '12px',
               color: 'var(--text-secondary)',
               transition: 'all 0.2s ease',
+              height: '28px',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = 'var(--hover-bg)';
@@ -507,203 +530,293 @@ const Editor: React.FC<EditorProps> = ({ note, onUpdateNote, isPreview = false, 
           <button
             onClick={() => onTogglePreview?.()}
             style={{
-              padding: '6px 10px',
-              backgroundColor: (isPreview || isSplit) ? 'var(--accent-color)' : 'var(--bg-secondary)',
-              color: (isPreview || isSplit) ? 'var(--text-on-accent)' : 'var(--text-secondary)',
+              padding: '4px 8px',
+              backgroundColor: isPreview ? 'var(--accent-color)' : 'var(--bg-secondary)',
+              color: isPreview ? 'var(--text-on-accent)' : 'var(--text-secondary)',
               border: '1px solid var(--border-color)',
               borderRadius: '6px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: '4px',
-              fontSize: '14px',
+              fontSize: '12px',
               transition: 'all 0.2s ease',
+              height: '28px',
             }}
             onMouseEnter={(e) => {
-              if (!isPreview && !isSplit) {
+              if (!isPreview) {
                 e.currentTarget.style.backgroundColor = 'var(--hover-bg)';
                 e.currentTarget.style.color = 'var(--text-primary)';
                 e.currentTarget.style.borderColor = 'var(--accent-color)';
               }
             }}
             onMouseLeave={(e) => {
-              if (!isPreview && !isSplit) {
+              if (!isPreview) {
                 e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
                 e.currentTarget.style.color = 'var(--text-secondary)';
                 e.currentTarget.style.borderColor = 'var(--border-color)';
               }
             }}
-            title={isSplit ? '分屏模式' : isPreview ? '预览模式' : '编辑模式'}
+            title={isPreview ? '预览模式' : '编辑模式'}
           >
-            {isSplit ? (
-              <>
-                <Edit size={16} />
-                <Eye size={16} />
-              </>
-            ) : isPreview ? (
+            {isPreview ? (
               <Eye size={16} />
             ) : (
               <Edit size={16} />
             )}
-            {isSplit ? '分屏' : isPreview ? '预览' : '编辑'}
+            {isPreview ? '预览' : '编辑'}
           </button>
         </div>
       </div>
 
       {/* 标签区域 */}
       <div style={{ padding: '17px 16px', borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <Tag size={14} style={{ color: 'var(--text-secondary)' }} />
-          {note.tags.map(tag => (
-            <span
-              key={tag}
-              className="tag"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                cursor: 'pointer',
-              }}
-            >
-              {tag}
-              <X
-                size={10}
-                onClick={() => handleRemoveTag(tag)}
-                style={{ cursor: 'pointer' }}
-              />
-            </span>
-          ))}
-          {showTagInput ? (
-            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-              <input
-                type="text"
-                value={newTag}
-                onChange={(e) => setNewTag(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
-                onBlur={handleAddTag}
-                placeholder="新标签"
-                autoFocus
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', flex: 1 }}>
+            <Tag size={14} style={{ color: 'var(--text-secondary)' }} />
+            {note.tags.map(tag => (
+              <span
+                key={tag}
+                className="tag"
                 style={{
-                  padding: '2px 6px',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '4px',
-                  fontSize: '12px',
-                  outline: 'none',
-                  width: '80px',
-                  backgroundColor: 'var(--bg-primary)',
-                  color: 'var(--text-primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  cursor: 'pointer',
                 }}
-              />
+              >
+                {tag}
+                <X
+                  size={10}
+                  onClick={() => handleRemoveTag(tag)}
+                  style={{ cursor: 'pointer' }}
+                />
+              </span>
+            ))}
+            {showTagInput ? (
+              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  value={newTag}
+                  onChange={(e) => setNewTag(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
+                  onBlur={handleAddTag}
+                  placeholder="新标签"
+                  autoFocus
+                  style={{
+                    padding: '2px 6px',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    outline: 'none',
+                    width: '80px',
+                    backgroundColor: 'var(--bg-primary)',
+                    color: 'var(--text-primary)',
+                  }}
+                />
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowTagInput(true)}
+                style={{
+                  padding: '2px 8px',
+                  backgroundColor: 'transparent',
+                  border: '1px dashed var(--border-color)',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  color: 'var(--text-secondary)',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--accent-color)';
+                  e.currentTarget.style.color = 'var(--text-primary)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--border-color)';
+                  e.currentTarget.style.color = 'var(--text-secondary)';
+                }}
+              >
+                + 添加标签
+              </button>
+            )}
+          </div>
+          
+          {/* 附件按钮 */}
+          {note.attachments.length > 0 && (
+            <div style={{ position: 'relative' }}>
+              <button
+                data-attachment-button
+                onClick={() => setShowAttachments(!showAttachments)}
+                style={{
+                  padding: '6px 8px',
+                  backgroundColor: showAttachments ? 'var(--accent-color)' : 'var(--bg-primary)',
+                  color: showAttachments ? 'var(--text-on-accent)' : 'var(--text-secondary)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontSize: '12px',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  if (!showAttachments) {
+                    e.currentTarget.style.backgroundColor = 'var(--hover-bg)';
+                    e.currentTarget.style.color = 'var(--text-primary)';
+                    e.currentTarget.style.borderColor = 'var(--accent-color)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!showAttachments) {
+                    e.currentTarget.style.backgroundColor = 'var(--bg-primary)';
+                    e.currentTarget.style.color = 'var(--text-secondary)';
+                    e.currentTarget.style.borderColor = 'var(--border-color)';
+                  }
+                }}
+                title={`附件 (${note.attachments.length})`}
+              >
+                <Paperclip size={14} />
+                {note.attachments.length}
+              </button>
+              
+              {/* 附件弹出列表 */}
+              {showAttachments && (
+                <div data-attachment-popup style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: '4px',
+                  backgroundColor: 'var(--bg-primary)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                  zIndex: 1000,
+                  minWidth: '250px',
+                  maxWidth: '350px',
+                  maxHeight: '300px',
+                  overflow: 'auto',
+                }}>
+                  <div style={{
+                    padding: '8px 12px',
+                    borderBottom: '1px solid var(--border-color)',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    color: 'var(--text-secondary)',
+                  }}>
+                    附件 ({note.attachments.length})
+                  </div>
+                  <div style={{ padding: '8px' }}>
+                    {note.attachments.map(attachment => (
+                      <div
+                        key={attachment.id}
+                        style={{
+                          padding: '8px',
+                          backgroundColor: 'var(--bg-secondary)',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '6px',
+                          marginBottom: '6px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          fontSize: '12px',
+                        }}
+                      >
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{
+                            fontWeight: '500',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}>
+                            {attachment.name}
+                          </div>
+                          <div style={{ color: 'var(--text-secondary)', fontSize: '10px' }}>
+                            {formatFileSize(attachment.size)}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <button
+                            onClick={() => {
+                              insertAttachmentToContent(attachment);
+                              setShowAttachments(false);
+                            }}
+                            style={{
+                              padding: '4px',
+                              backgroundColor: 'transparent',
+                              border: 'none',
+                              cursor: 'pointer',
+                              color: 'var(--accent-color)',
+                              borderRadius: '4px',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = 'var(--hover-bg)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                            title="插入到内容"
+                          >
+                            <Edit size={12} />
+                          </button>
+                          <button
+                            onClick={() => downloadAttachment(attachment)}
+                            style={{
+                              padding: '4px',
+                              backgroundColor: 'transparent',
+                              border: 'none',
+                              cursor: 'pointer',
+                              color: 'var(--accent-color)',
+                              borderRadius: '4px',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = 'var(--hover-bg)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                            title="下载"
+                          >
+                            <Download size={12} />
+                          </button>
+                          <button
+                            onClick={() => {
+                              handleRemoveAttachment(attachment.id);
+                              if (note.attachments.length === 1) {
+                                setShowAttachments(false);
+                              }
+                            }}
+                            style={{
+                              padding: '4px',
+                              backgroundColor: 'transparent',
+                              border: 'none',
+                              cursor: 'pointer',
+                              color: 'var(--error-color)',
+                              borderRadius: '4px',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = 'var(--hover-bg)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                            title="删除"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-          ) : (
-            <button
-              onClick={() => setShowTagInput(true)}
-              style={{
-                padding: '2px 8px',
-                backgroundColor: 'transparent',
-                border: '1px dashed var(--border-color)',
-                borderRadius: '12px',
-                cursor: 'pointer',
-                fontSize: '12px',
-                color: 'var(--text-secondary)',
-                transition: 'all 0.2s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = 'var(--accent-color)';
-                e.currentTarget.style.color = 'var(--text-primary)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'var(--border-color)';
-                e.currentTarget.style.color = 'var(--text-secondary)';
-              }}
-            >
-              + 添加标签
-            </button>
           )}
         </div>
       </div>
 
-      {/* 附件区域 */}
-      {note.attachments.length > 0 && (
-        <div style={{ padding: '17px 16px', borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
-          <h4 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: 'var(--text-secondary)' }}>
-            附件 ({note.attachments.length})
-          </h4>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-            {note.attachments.map(attachment => (
-              <div
-                key={attachment.id}
-                style={{
-                  padding: '8px',
-                  backgroundColor: 'var(--bg-primary)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '6px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  fontSize: '12px',
-                  maxWidth: '200px',
-                }}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{
-                    fontWeight: '500',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}>
-                    {attachment.name}
-                  </div>
-                  <div style={{ color: 'var(--text-secondary)', fontSize: '10px' }}>
-                    {formatFileSize(attachment.size)}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: '4px' }}>
-                  <button
-                    onClick={() => insertAttachmentToContent(attachment)}
-                    style={{
-                      padding: '2px',
-                      backgroundColor: 'transparent',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: 'var(--accent-color)',
-                    }}
-                    title="插入到内容"
-                  >
-                    <Edit size={12} />
-                  </button>
-                  <button
-                    onClick={() => downloadAttachment(attachment)}
-                    style={{
-                      padding: '2px',
-                      backgroundColor: 'transparent',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: 'var(--accent-color)',
-                    }}
-                    title="下载"
-                  >
-                    <Download size={12} />
-                  </button>
-                  <button
-                    onClick={() => handleRemoveAttachment(attachment.id)}
-                    style={{
-                      padding: '2px',
-                      backgroundColor: 'transparent',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: 'var(--error-color)',
-                    }}
-                    title="删除"
-                  >
-                    <X size={12} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+
 
       {/* 编辑器/预览区域 */}
       <div style={{ 
@@ -711,115 +824,10 @@ const Editor: React.FC<EditorProps> = ({ note, onUpdateNote, isPreview = false, 
         overflow: 'auto',
         minHeight: 0,
         display: 'flex',
-        flexDirection: isSplit ? 'row' : 'column'
+        flexDirection: 'column'
       }}>
-        {isSplit ? (
-          // 分屏模式：左侧编辑器，右侧预览
-          <>
-            <div style={{ 
-              flex: 1, 
-              display: 'flex',
-              flexDirection: 'row',
-              borderRight: '1px solid var(--border-color)'
-            }}>
-              {settings.showLineNumbers && (
-                <div style={{
-                  width: '50px',
-                  backgroundColor: 'var(--bg-secondary)',
-                  borderRight: '1px solid var(--border-color)',
-                  padding: '24px 8px',
-                  fontSize: `${settings.fontSize}px`,
-                  lineHeight: settings.wordWrap ? '1.6' : '1.4',
-                  fontFamily: settings.fontFamily === 'mono' 
-                    ? 'Monaco, Menlo, "Ubuntu Mono", monospace'
-                    : settings.fontFamily === 'serif'
-                    ? 'Georgia, "Times New Roman", serif'
-                    : '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                  color: 'var(--text-secondary)',
-                  textAlign: 'right',
-                  userSelect: 'none',
-                  whiteSpace: 'pre',
-                  overflow: 'hidden',
-                  boxSizing: 'border-box'
-                }}>
-                  {getLineNumbers(note.content).map(lineNum => (
-                    <div key={lineNum} style={{ height: `${settings.fontSize * (settings.wordWrap ? 1.6 : 1.4)}px` }}>
-                      {lineNum}
-                    </div>
-                  ))}
-                </div>
-              )}
-              <textarea
-                ref={textareaRef}
-                value={note.content}
-                onChange={(e) => handleContentChange(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onCompositionStart={handleCompositionStart}
-                onCompositionEnd={handleCompositionEnd}
-                onClick={handleTextareaClick}
-                placeholder={showPlaceholder ? `开始编写你的笔记...
-
-支持 Markdown 语法：
-# 标题
-**粗体** *斜体*
-- 列表项
-[链接](url)
-![图片](url)
-
-数学公式：
-行内公式：$E = mc^2$
-块级公式：
-$$
-\\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}
-$$
-
-快捷键：
-Tab - 增加缩进（4个空格）
-Shift+Tab - 减少缩进
-Enter - 智能换行（保持缩进/列表）` : ""}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  flex: 1,
-                  padding: '24px',
-                  paddingLeft: settings.showLineNumbers ? '12px' : '24px',
-                  border: 'none',
-                  outline: 'none',
-                  resize: 'none',
-                  fontSize: `${settings.fontSize}px`,
-                  lineHeight: settings.wordWrap ? '1.6' : '1.4',
-                  fontFamily: settings.fontFamily === 'mono' 
-                    ? 'Monaco, Menlo, "Ubuntu Mono", monospace'
-                    : settings.fontFamily === 'serif'
-                    ? 'Georgia, "Times New Roman", serif'
-                    : '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                  backgroundColor: 'transparent',
-                  color: 'var(--text-primary)',
-                  boxSizing: 'border-box',
-                  whiteSpace: settings.wordWrap ? 'pre-wrap' : 'pre',
-                  wordWrap: settings.wordWrap ? 'break-word' : 'normal',
-                }}
-              />
-            </div>
-            <div style={{ 
-              flex: 1, 
-              padding: '24px', 
-              lineHeight: '1.6',
-              overflow: 'auto',
-              height: '100%',
-              boxSizing: 'border-box'
-            }}>
-              <ReactMarkdown
-                className="markdown-content"
-                remarkPlugins={[remarkGfm, remarkMath]}
-                rehypePlugins={[rehypeKatex, rehypeHighlight]}
-              >
-                {note.content}
-              </ReactMarkdown>
-            </div>
-          </>
-        ) : isPreview ? (
-          // 纯预览模式
+        {isPreview ? (
+          // 预览模式
           <div style={{ 
             padding: '24px', 
             lineHeight: '1.6',
@@ -837,7 +845,7 @@ Enter - 智能换行（保持缩进/列表）` : ""}
             </ReactMarkdown>
           </div>
         ) : (
-          // 纯编辑模式
+          // 编辑模式
           <div style={{ 
             display: 'flex',
             flexDirection: 'row',

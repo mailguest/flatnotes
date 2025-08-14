@@ -1,5 +1,5 @@
-import React, { useRef } from 'react';
-import { Tag, Trash2 } from 'lucide-react';
+import React, { useRef, useMemo, useCallback, useState, useEffect } from 'react';
+import { Tag, Trash2, Loader2, RefreshCw } from 'lucide-react';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Note, Category } from '../types';
@@ -25,37 +25,161 @@ const NoteList: React.FC<NoteListProps> = ({
   onSelectNote,
   onDeleteNote,
 }) => {
-  // 过滤笔记
-  const filteredNotes = notes.filter(note => {
-    const searchLower = searchQuery.toLowerCase();
-    const matchesSearch = searchQuery === '' || 
-                         note.title.toLowerCase().includes(searchLower) ||
-                         note.content.toLowerCase().includes(searchLower) ||
-                         note.tags.some(tag => tag.toLowerCase().includes(searchLower));
-    const matchesCategory = !selectedCategory || note.category === selectedCategory;
-    const matchesTags = selectedTags.length === 0 || 
-                       selectedTags.every(tag => note.tags.includes(tag));
-    return matchesSearch && matchesCategory && matchesTags;
-  });
+  // 无限滚动配置
+  const ITEMS_PER_PAGE = 50; // 每次加载50个笔记
+  const [displayedCount, setDisplayedCount] = useState(ITEMS_PER_PAGE);
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  const formatDate = (date: Date) => {
+  // 下拉刷新配置
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
+  const [startY, setStartY] = useState(0);
+  const [isPulling, setIsPulling] = useState(false);
+  const PULL_THRESHOLD = 80; // 下拉刷新阈值
+
+  // 过滤笔记 - 使用useMemo缓存计算结果
+  const filteredNotes = useMemo(() => {
+    return notes.filter(note => {
+      const searchLower = searchQuery.toLowerCase();
+      const matchesSearch = searchQuery === '' || 
+                           note.title.toLowerCase().includes(searchLower) ||
+                           note.content.toLowerCase().includes(searchLower) ||
+                           note.tags.some(tag => tag.toLowerCase().includes(searchLower));
+      const matchesCategory = !selectedCategory || note.category === selectedCategory;
+      const matchesTags = selectedTags.length === 0 || 
+                         selectedTags.every(tag => note.tags.includes(tag));
+      return matchesSearch && matchesCategory && matchesTags;
+    });
+  }, [notes, searchQuery, selectedCategory, selectedTags]);
+
+  // 显示的笔记 - 根据displayedCount截取
+  const displayedNotes = useMemo(() => {
+    return filteredNotes.slice(0, displayedCount);
+  }, [filteredNotes, displayedCount]);
+
+  // 当过滤条件变化时重置显示数量
+  useEffect(() => {
+    setDisplayedCount(ITEMS_PER_PAGE);
+    setHasMore(true);
+  }, [searchQuery, selectedCategory, selectedTags]);
+
+  // 更新hasMore状态
+  useEffect(() => {
+    setHasMore(displayedCount < filteredNotes.length);
+  }, [displayedCount, filteredNotes.length]);
+
+  // 加载更多笔记
+  const loadMore = useCallback(async () => {
+    if (isLoading || !hasMore) return;
+    
+    setIsLoading(true);
+    // 减少延迟以提供更流畅的体验
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    setDisplayedCount(prev => {
+      const newCount = prev + ITEMS_PER_PAGE;
+      return Math.min(newCount, filteredNotes.length);
+    });
+    setIsLoading(false);
+  }, [isLoading, hasMore, filteredNotes.length]);
+
+  // 滚动监听器
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    const threshold = 100; // 距离底部100px时开始加载
+    
+    if (scrollHeight - scrollTop - clientHeight < threshold && hasMore && !isLoading) {
+      loadMore();
+    }
+  }, [hasMore, isLoading, loadMore]);
+
+  // 下拉刷新功能
+  const handleRefresh = useCallback(async () => {
+    if (isRefreshing) return;
+    
+    setIsRefreshing(true);
+    // 模拟刷新延迟
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // 重置显示数量到初始值
+    setDisplayedCount(ITEMS_PER_PAGE);
+    setHasMore(true);
+    setIsRefreshing(false);
+  }, [isRefreshing]);
+
+  // 触摸开始
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (scrollContainerRef.current?.scrollTop === 0) {
+      setStartY(e.touches[0].clientY);
+      setIsPulling(true);
+    }
+  }, []);
+
+  // 触摸移动
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isPulling || scrollContainerRef.current?.scrollTop !== 0) {
+      setIsPulling(false);
+      setPullDistance(0);
+      return;
+    }
+
+    const currentY = e.touches[0].clientY;
+    const distance = Math.max(0, currentY - startY);
+    const dampedDistance = Math.min(distance * 0.5, PULL_THRESHOLD * 1.5);
+    
+    setPullDistance(dampedDistance);
+    
+    // 阻止默认滚动行为
+    if (distance > 0) {
+      e.preventDefault();
+    }
+  }, [isPulling, startY]);
+
+  // 触摸结束
+  const handleTouchEnd = useCallback(() => {
+    if (isPulling && pullDistance >= PULL_THRESHOLD) {
+      handleRefresh();
+    }
+    
+    setIsPulling(false);
+    setPullDistance(0);
+    setStartY(0);
+  }, [isPulling, pullDistance, handleRefresh]);
+
+  // 缓存日期格式化函数
+  const formatDate = useCallback((date: Date) => {
     return new Intl.DateTimeFormat('zh-CN', {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
     }).format(date);
-  };
+  }, []);
 
-  // NoteItem 子组件
-  const NoteItem: React.FC<{
+  // 优化内容预览计算
+  const getContentPreview = useCallback((content: string) => {
+    const cleanContent = content.replace(/[#*`]/g, '').substring(0, 100);
+    return cleanContent + (content.length > 100 ? '...' : '');
+  }, []);
+
+  // LazyNoteItem 子组件 - 使用React.memo和懒加载优化
+  const LazyNoteItem = React.memo<{
     note: Note;
     isSelected: boolean;
     category?: Category;
-  }> = ({ note, isSelected, category }) => {
+    onSelectNote: (noteId: string) => void;
+    onDeleteNote: (noteId: string) => void;
+    formatDate: (date: Date) => string;
+    getContentPreview: (content: string) => string;
+  }>(({ note, isSelected, category, onSelectNote, onDeleteNote, formatDate, getContentPreview }) => {
+    const [hasBeenVisible, setHasBeenVisible] = useState(false);
+    const observerRef = useRef<HTMLDivElement>(null);
     const mouseDownTime = useRef<number>(0);
     const isDragging = useRef<boolean>(false);
 
+    // useSortable Hook必须在条件渲染之前调用
     const {
       attributes,
       listeners,
@@ -64,6 +188,49 @@ const NoteList: React.FC<NoteListProps> = ({
       transition,
       isDragging: isDraggingState,
     } = useSortable({ id: note.id });
+
+    // Intersection Observer for lazy loading
+    useEffect(() => {
+      const observer = new IntersectionObserver(
+        ([entry]) => {
+          if (entry.isIntersecting && !hasBeenVisible) {
+            setHasBeenVisible(true);
+          }
+        },
+        {
+          rootMargin: '50px', // 提前50px开始加载
+          threshold: 0.1
+        }
+      );
+
+      if (observerRef.current) {
+        observer.observe(observerRef.current);
+      }
+
+      return () => {
+        if (observerRef.current) {
+          observer.unobserve(observerRef.current);
+        }
+      };
+    }, [hasBeenVisible]);
+
+    // 如果从未可见过，显示占位符
+    if (!hasBeenVisible) {
+      return (
+        <div
+          ref={observerRef}
+          style={{
+            height: '80px', // 预估高度
+            backgroundColor: 'var(--bg-secondary)',
+            margin: '1px 0',
+            borderRadius: '4px',
+            opacity: 0.6,
+            transition: 'opacity 0.2s ease-in-out',
+            // 移除加载文字，使用更简洁的占位符
+          }}
+        />
+      );
+    }
 
     const style = {
       transform: CSS.Transform.toString(transform),
@@ -77,9 +244,8 @@ const NoteList: React.FC<NoteListProps> = ({
     };
 
     const handleMouseUp = () => {
-      const timeDiff = Date.now() - mouseDownTime.current;
-      // 如果时间差小于200ms且没有拖拽，则认为是点击
-      if (timeDiff < 200 && !isDragging.current) {
+      const clickDuration = Date.now() - mouseDownTime.current;
+      if (clickDuration < 200 && !isDragging.current) {
         onSelectNote(note.id);
       }
     };
@@ -95,33 +261,24 @@ const NoteList: React.FC<NoteListProps> = ({
     return (
       <div
         ref={setNodeRef}
+        {...listeners}
+        onMouseDown={handleMouseDown}
+        onMouseUp={handleMouseUp}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
         style={{
           ...style,
           padding: '16px',
           borderBottom: '1px solid var(--border-color)',
           backgroundColor: isSelected ? 'var(--accent-bg)' : 'transparent',
-          transition: 'all 0.2s ease',
+          transition: 'all 0.2s ease, opacity 0.3s ease-in-out',
           position: 'relative',
+          opacity: hasBeenVisible ? 1 : 0,
+          animation: hasBeenVisible ? 'fadeIn 0.3s ease-in-out' : 'none',
+          cursor: 'pointer',
         }}
         {...attributes}
       >
-        {/* 拖拽区域 */}
-        <div
-          {...listeners}
-          onMouseDown={handleMouseDown}
-          onMouseUp={handleMouseUp}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-          style={{
-            cursor: 'pointer',
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: '50px', // 为删除按钮留出空间
-            bottom: 0,
-            zIndex: 1,
-          }}
-        />
         
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
           <h3 style={{ 
@@ -130,8 +287,6 @@ const NoteList: React.FC<NoteListProps> = ({
             fontWeight: '600',
             color: 'var(--text-primary)',
             lineHeight: '1.4',
-            position: 'relative',
-            zIndex: 2,
           }}>
             {note.title || '无标题'}
           </h3>
@@ -177,19 +332,14 @@ const NoteList: React.FC<NoteListProps> = ({
           display: '-webkit-box',
           WebkitLineClamp: 2,
           WebkitBoxOrient: 'vertical',
-          position: 'relative',
-          zIndex: 2,
         }}>
-          {note.content.replace(/[#*`]/g, '').substring(0, 100)}
-          {note.content.length > 100 ? '...' : ''}
+          {getContentPreview(note.content)}
         </p>
         <div style={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'center',
           marginTop: '12px',
-          position: 'relative',
-          zIndex: 2,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {category && (
@@ -222,12 +372,13 @@ const NoteList: React.FC<NoteListProps> = ({
         </div>
       </div>
     );
-  };
+  });
 
-  const getCategoryName = (categoryId: string) => {
+  // 缓存分类名称获取函数
+  const getCategoryName = useCallback((categoryId: string) => {
     const category = categories.find(cat => cat.id === categoryId);
     return category?.name || '未分类';
-  };
+  }, [categories]);
 
   return (
     <div style={{
@@ -241,20 +392,68 @@ const NoteList: React.FC<NoteListProps> = ({
     }}>
       {/* 头部 */}
       <div style={{ 
-        padding: '17px 16px', 
+        padding: '12px 16px', 
         borderBottom: '1px solid var(--border-color)',
         backgroundColor: 'var(--bg-tertiary)',
+        height: '60px',
+        boxSizing: 'border-box',
       }}>
-        <h2 style={{ 
-          fontSize: '16px', 
-          fontWeight: 'bold', 
-          margin: 0, 
-          color: 'var(--text-primary)',
+        <div style={{ 
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          gap: '8px',
         }}>
-          <span>笔记列表</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', flex: 1 }}>
+            {selectedCategory && (
+              <span style={{
+                fontSize: '14px',
+                color: 'var(--text-primary)',
+                backgroundColor: 'var(--bg-primary)',
+                padding: '4px 12px',
+                borderRadius: '12px',
+                border: '1px solid var(--border-color)',
+                fontWeight: '500',
+              }}>
+                分类: {getCategoryName(selectedCategory)}
+              </span>
+            )}
+            {selectedTags.length > 0 && (
+              <span style={{
+                fontSize: '14px',
+                color: 'var(--text-primary)',
+                backgroundColor: 'var(--bg-primary)',
+                padding: '4px 12px',
+                borderRadius: '12px',
+                border: '1px solid var(--border-color)',
+                fontWeight: '500',
+              }}>
+                标签: {selectedTags.join(', ')}
+              </span>
+            )}
+            {searchQuery && (
+              <span style={{
+                fontSize: '14px',
+                color: 'var(--text-primary)',
+                backgroundColor: 'var(--bg-primary)',
+                padding: '4px 12px',
+                borderRadius: '12px',
+                border: '1px solid var(--border-color)',
+                fontWeight: '500',
+              }}>
+                搜索: {searchQuery}
+              </span>
+            )}
+            {!selectedCategory && selectedTags.length === 0 && !searchQuery && (
+              <span style={{
+                fontSize: '16px',
+                color: 'var(--text-primary)',
+                fontWeight: 'bold',
+              }}>
+                所有笔记
+              </span>
+            )}
+          </div>
           <span style={{ 
             fontSize: '12px', 
             fontWeight: 'normal', 
@@ -262,87 +461,137 @@ const NoteList: React.FC<NoteListProps> = ({
             backgroundColor: 'var(--bg-secondary)',
             padding: '2px 8px',
             borderRadius: '12px',
+            flexShrink: 0,
           }}>
             {filteredNotes.length}
           </span>
-        </h2>
-      </div>
-
-      {/* 筛选状态区域 */}
-      <div style={{ padding: '17px 16px', borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          {selectedCategory && (
-            <span style={{
-              fontSize: '12px',
-              color: 'var(--text-secondary)',
-              backgroundColor: 'var(--bg-primary)',
-              padding: '2px 8px',
-              borderRadius: '12px',
-              border: '1px solid var(--border-color)',
-            }}>
-              分类: {getCategoryName(selectedCategory)}
-            </span>
-          )}
-          {selectedTags.length > 0 && (
-            <span style={{
-              fontSize: '12px',
-              color: 'var(--text-secondary)',
-              backgroundColor: 'var(--bg-primary)',
-              padding: '2px 8px',
-              borderRadius: '12px',
-              border: '1px solid var(--border-color)',
-            }}>
-              标签: {selectedTags.join(', ')}
-            </span>
-          )}
-          {searchQuery && (
-            <span style={{
-              fontSize: '12px',
-              color: 'var(--text-secondary)',
-              backgroundColor: 'var(--bg-primary)',
-              padding: '2px 8px',
-              borderRadius: '12px',
-              border: '1px solid var(--border-color)',
-            }}>
-              搜索: {searchQuery}
-            </span>
-          )}
-          {!selectedCategory && selectedTags.length === 0 && !searchQuery && (
-            <span style={{
-              fontSize: '12px',
-              color: 'var(--text-tertiary)',
-            }}>
-              显示所有笔记
-            </span>
-          )}
         </div>
       </div>
 
       {/* 笔记列表 */}
-      <div style={{ flex: 1, overflow: 'auto' }}>
-        {filteredNotes.length === 0 ? (
+      <div 
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        style={{ 
+          flex: 1, 
+          overflow: 'auto', 
+          display: 'flex', 
+          flexDirection: 'column',
+          transform: `translateY(${pullDistance}px)`,
+          transition: isPulling ? 'none' : 'transform 0.3s ease-out',
+          paddingBottom: '20px'
+        }}
+      >
+        {/* 下拉刷新指示器 */}
+        {(isPulling || isRefreshing) && (
           <div style={{
-            padding: '32px 16px',
-            textAlign: 'center',
-            color: 'var(--text-tertiary)',
+            position: 'absolute',
+            top: `-${Math.max(60, pullDistance)}px`,
+            left: 0,
+            right: 0,
+            height: '60px',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: '8px',
+            backgroundColor: 'var(--bg-primary)',
+            color: 'var(--text-secondary)',
+            fontSize: '14px',
+            zIndex: 10,
+          }}>
+            <RefreshCw 
+              size={16} 
+              className={isRefreshing || pullDistance >= PULL_THRESHOLD ? 'animate-spin' : ''}
+              style={{
+                transform: `rotate(${Math.min(pullDistance * 4, 360)}deg)`,
+                transition: isRefreshing ? 'none' : 'transform 0.1s ease-out'
+              }}
+            />
+            <span>
+              {isRefreshing 
+                ? '刷新中...' 
+                : pullDistance >= PULL_THRESHOLD 
+                  ? '松开刷新' 
+                  : '下拉刷新'
+              }
+            </span>
+          </div>
+        )}
+        <div style={{ flex: 1 }}>
+          {filteredNotes.length === 0 ? (
+            <div style={{
+              padding: '32px 16px',
+              textAlign: 'center',
+              color: 'var(--text-tertiary)',
+              fontSize: '14px',
+            }}>
+              {searchQuery || selectedTags.length > 0 ? '没有找到匹配的笔记' : '暂无笔记'}
+            </div>
+          ) : (
+            <SortableContext items={displayedNotes.map(note => note.id)} strategy={verticalListSortingStrategy}>
+              {displayedNotes.map((note) => {
+                const category = categories.find(cat => cat.id === note.category);
+                return (
+                  <LazyNoteItem
+                    key={note.id}
+                    note={note}
+                    isSelected={selectedNoteId === note.id}
+                    category={category}
+                    onSelectNote={onSelectNote}
+                    onDeleteNote={onDeleteNote}
+                    formatDate={formatDate}
+                    getContentPreview={getContentPreview}
+                  />
+                );
+              })}
+            </SortableContext>
+          )}
+        </div>
+        
+        {/* 加载更多指示器 */}
+        {isLoading && (
+          <div style={{
+            padding: '16px',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: '8px',
+            color: 'var(--text-secondary)',
             fontSize: '14px',
           }}>
-            {searchQuery || selectedTags.length > 0 ? '没有找到匹配的笔记' : '暂无笔记'}
+            <Loader2 size={16} className="animate-spin" />
+            <span>加载中...</span>
           </div>
-        ) : (
-          <SortableContext items={filteredNotes.map(note => note.id)} strategy={verticalListSortingStrategy}>
-            {filteredNotes.map((note) => {
-              const category = categories.find(cat => cat.id === note.category);
-              return (
-                <NoteItem
-                  key={note.id}
-                  note={note}
-                  isSelected={selectedNoteId === note.id}
-                  category={category}
-                />
-              );
-            })}
-          </SortableContext>
+        )}
+        
+        {/* 到达底部提示 */}
+        {!hasMore && displayedNotes.length > 0 && (
+          <div style={{
+            padding: '20px 16px',
+            textAlign: 'center',
+            color: 'var(--text-secondary)',
+            fontSize: '14px',
+            borderTop: '1px solid var(--border-color)',
+            backgroundColor: 'var(--bg-secondary)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '8px',
+          }}>
+            <div>
+              <div style={{
+                fontWeight: '500',
+                marginBottom: '4px',
+              }}>已到达列表底部</div>
+              <div style={{
+                fontSize: '12px',
+                color: 'var(--text-tertiary)',
+              }}>共 {filteredNotes.length} 个笔记</div>
+            </div>
+          </div>
         )}
       </div>
 
@@ -351,4 +600,4 @@ const NoteList: React.FC<NoteListProps> = ({
   );
 };
 
-export default NoteList;
+export default React.memo(NoteList);
