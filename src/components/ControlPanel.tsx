@@ -716,7 +716,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
       </div>
 
       {/* 分类列表 */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
+      <div style={{ flex: 1, overflow: 'auto', padding: '16px', paddingBottom: '60px' }}>
         <div style={{ marginBottom: '16px' }}>
           <h3 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '8px', color: 'var(--text-primary)' }}>
             分类
