@@ -15,8 +15,9 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3001
-      # 认证密码 - 生产环境，强烈建议修改为强密码
-      - AUTH_PASSWORD=${AUTH_PASSWORD:-flatnotes222}
+      # 认证密码 - 生产环境必须设置强密码
+      # 请在 .env 文件中设置 AUTH_PASSWORD 环境变量
+      - AUTH_PASSWORD=${AUTH_PASSWORD}
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3001/api/health || curl -f http://localhost:3001/api/health"]

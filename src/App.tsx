@@ -18,6 +18,7 @@ import Login from './components/Login';
 import Logo from './components/Logo';
 import { SettingsProvider, useSettings } from './contexts/SettingsContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { NoteSelectionProvider, useNoteSelection } from './contexts/NoteSelectionContext';
 
 import { Note, Category, AppState, ViewMode } from './types';
 import { loadData, saveData, getDefaultCategories, createDefaultNote, initializeStorage, getStorageMode, setDataUpdateCallback } from './utils/storage';
@@ -26,14 +27,14 @@ import { notesAPI, categoriesAPI } from './utils/api';
 const AppContent: React.FC = () => {
   const { settings, updateSettings } = useSettings();
   const { isAuthenticated, isLoading: authLoading, login } = useAuth();
-  const [state, setState] = useState<AppState>({
+  const [state, setState] = useState<Omit<AppState, 'selectedNoteId'>>({
     notes: [],
     categories: [],
-    selectedNoteId: null,
     selectedCategory: null,
     searchQuery: '',
     selectedTags: [],
   });
+  const { selectedNoteId, selectNote, clearSelection, clearSelectionIfMatches } = useNoteSelection();
   const [isLoading, setIsLoading] = useState(true);
   const [storageMode, setStorageMode] = useState<'server' | 'local'>('local');
   const [viewMode, setViewMode] = useState<ViewMode>('three-column');
@@ -86,7 +87,7 @@ const AppContent: React.FC = () => {
           ...prev,
           ...savedData,
           categories: savedData.categories || getDefaultCategories(),
-          selectedNoteId: uiState.selectedNoteId,
+          selectedNoteId: selectedNoteId,
           selectedCategory: uiState.selectedCategory,
         }));
       } catch (error) {
@@ -108,7 +109,7 @@ const AppContent: React.FC = () => {
         await saveData({
           notes: state.notes,
           categories: state.categories,
-          selectedNoteId: state.selectedNoteId,
+          selectedNoteId: selectedNoteId,
           selectedCategory: state.selectedCategory,
         });
       } catch (error) {
@@ -126,7 +127,7 @@ const AppContent: React.FC = () => {
     
     // 只保存到本地存储，不触发服务端同步
     const uiState = {
-      selectedNoteId: state.selectedNoteId,
+      selectedNoteId: selectedNoteId,
       selectedCategory: state.selectedCategory,
     };
     
@@ -135,7 +136,7 @@ const AppContent: React.FC = () => {
     } catch (error) {
       console.error('保存UI状态失败:', error);
     }
-  }, [state.selectedNoteId, state.selectedCategory, isLoading]);
+  }, [selectedNoteId, state.selectedCategory, isLoading]);
 
   // 清理防抖定时器
   useEffect(() => {
@@ -158,8 +159,8 @@ const AppContent: React.FC = () => {
   };
 
   const handleSelectNote = useCallback((noteId: string) => {
-    setState(prev => ({ ...prev, selectedNoteId: noteId }));
-  }, []);
+    selectNote(noteId);
+  }, [selectNote]);
 
   const handleUpdateNote = useCallback((noteId: string, updates: Partial<Note>) => {
     // 立即更新状态，不使用防抖
@@ -178,9 +179,10 @@ const AppContent: React.FC = () => {
     setState(prev => ({
       ...prev,
       notes: prev.notes.filter(note => note.id !== noteId),
-      selectedNoteId: prev.selectedNoteId === noteId ? null : prev.selectedNoteId,
     }));
-  }, []);
+    // 如果删除的是当前选中的笔记，清除选中状态
+    clearSelectionIfMatches(noteId);
+  }, [clearSelectionIfMatches]);
 
   const handleSelectCategory = (categoryId: string | null) => {
     setState(prev => ({ ...prev, selectedCategory: categoryId }));
@@ -411,7 +413,7 @@ const AppContent: React.FC = () => {
     }
   };
 
-  const selectedNote = state.notes.find(note => note.id === state.selectedNoteId);
+  const selectedNote = state.notes.find(note => note.id === selectedNoteId);
 
   // 计算当前编辑器模式
   const isPreview = settings.editorMode === 'preview';
@@ -694,15 +696,14 @@ const AppContent: React.FC = () => {
               {/* 笔记列表 */}
               <div style={{ flex: 1, overflow: 'hidden' }}>
                 <NoteList
-                  notes={state.notes}
-                  categories={state.categories}
-                  selectedNoteId={state.selectedNoteId}
-                  selectedCategory={state.selectedCategory}
-                  searchQuery={state.searchQuery}
-                  selectedTags={state.selectedTags}
-                  onSelectNote={handleSelectNote}
-                  onDeleteNote={handleDeleteNote}
-                />
+            notes={state.notes}
+            categories={state.categories}
+            selectedCategory={state.selectedCategory}
+            searchQuery={state.searchQuery}
+            selectedTags={state.selectedTags}
+            onSelectNote={handleSelectNote}
+            onDeleteNote={handleDeleteNote}
+          />
               </div>
             </div>
 
@@ -767,7 +768,7 @@ const AppContent: React.FC = () => {
                searchQuery={state.searchQuery}
                searchInput={searchInput}
                selectedTags={state.selectedTags}
-               selectedNoteId={state.selectedNoteId}
+               selectedNoteId={selectedNoteId}
                storageMode={storageMode}
                onCreateNote={handleCreateNote}
                onSelectCategory={handleSelectCategory}
@@ -784,7 +785,6 @@ const AppContent: React.FC = () => {
               <NoteList
                 notes={state.notes}
                 categories={state.categories}
-                selectedNoteId={state.selectedNoteId}
                 selectedCategory={state.selectedCategory}
                 searchQuery={state.searchQuery}
                 selectedTags={state.selectedTags}
@@ -860,7 +860,7 @@ const AppContent: React.FC = () => {
           }}>
             {activeId.startsWith('category-') 
               ? state.categories.find(cat => `category-${cat.id}` === activeId)?.name
-              : state.notes.find(note => `note-${note.id}` === activeId)?.title || '未命名笔记'
+              : state.notes.find(note => note.id === activeId)?.title || state.notes.find(note => `note-${note.id}` === activeId)?.title || '未命名笔记'
             }
           </div>
         ) : null}
@@ -878,7 +878,9 @@ const App: React.FC = () => {
   return (
     <AuthProvider>
       <SettingsProvider>
-        <AppContent />
+        <NoteSelectionProvider>
+          <AppContent />
+        </NoteSelectionProvider>
       </SettingsProvider>
     </AuthProvider>
   );

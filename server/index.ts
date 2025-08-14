@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs/promises';
@@ -60,13 +61,83 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // 认证配置
-// 认证密码配置优先级：.env文件 > 环境变量 > 默认值
-const AUTH_PASSWORD = process.env.AUTH_PASSWORD || 'flatnotes123';
-const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex');
+// 认证密码必须通过环境变量设置，确保安全性
+if (!process.env.AUTH_PASSWORD) {
+  console.error('错误: AUTH_PASSWORD 环境变量未设置。请在 .env 文件中设置一个强密码。');
+  process.exit(1);
+}
+const AUTH_PASSWORD = process.env.AUTH_PASSWORD;
+
+// JWT密钥必须通过环境变量设置，确保服务重启后token仍然有效
+if (!process.env.JWT_SECRET) {
+  console.error('错误: JWT_SECRET 环境变量未设置。请在 .env 文件中设置一个强密钥。');
+  process.exit(1);
+}
+const JWT_SECRET = process.env.JWT_SECRET;
 const SESSION_DURATION = '7d'; // JWT token有效期
 
 // 中间件
-app.use(cors());
+// CORS 安全配置
+const corsOptions = {
+  origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
+    // 开发环境允许所有来源（可通过环境变量控制）
+    if (process.env.CORS_ALLOW_ALL === 'true') {
+      return callback(null, true);
+    }
+    
+    // 允许的域名列表（生产环境应该配置具体域名）
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:3001'
+      // 生产环境请添加实际域名，例如：
+      // 'https://yourdomain.com',
+      // 'https://www.yourdomain.com'
+    ];
+    
+    // 开发环境允许无 origin 的请求（如 Postman）
+    if (!origin && process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    
+    if (origin && allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn('CORS 阻止的请求来源:', origin);
+      callback(new Error('不允许的 CORS 来源'));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+  maxAge: 86400 // 24小时
+};
+
+// 安全响应头配置
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      fontSrc: ["'self'"],
+      connectSrc: ["'self'"],
+      mediaSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      frameSrc: ["'none'"]
+    }
+  },
+  crossOriginEmbedderPolicy: false, // 允许文件上传
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  }
+}));
+
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
@@ -90,13 +161,16 @@ function authenticateToken(req: express.Request, res: express.Response, next: ex
 
 // 检查是否需要认证的中间件
 function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
-  // 如果没有设置密码，则跳过认证
-  if (!AUTH_PASSWORD) {
-    return next();
-  }
+  // 不需要认证的接口列表
+  const publicPaths = [
+    '/api/auth/login',
+    '/api/auth/verify', 
+    '/api/auth/config',
+    '/api/health'
+  ];
   
-  // 登录、验证和健康检查接口不需要认证
-  if (req.path === '/api/auth/login' || req.path === '/api/auth/verify' || req.path === '/api/health') {
+  // 检查是否为公开接口
+  if (publicPaths.includes(req.path)) {
     return next();
   }
   
@@ -232,21 +306,91 @@ async function deleteNoteContent(noteId: string): Promise<void> {
   }
 }
 
+// 允许的文件类型白名单
+const ALLOWED_FILE_TYPES = [
+  // 图片类型
+  'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp', 'image/tiff',
+  // 文档类型
+  'application/pdf', 'text/plain', 'text/markdown', 'text/csv',
+  // Word文档
+  'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  // Excel文档
+  'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  // PowerPoint文档
+  'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  // 其他常见文件类型
+  'application/octet-stream', // 通用二进制文件类型（如LICENSE等无扩展名文件）
+  'application/json', 'application/xml', 'text/xml', 'text/html', 'text/css', 'text/javascript',
+  // 压缩文件
+  'application/zip', 'application/x-rar-compressed', 'application/x-7z-compressed'
+];
+
+// 允许的文件扩展名
+const ALLOWED_EXTENSIONS = [
+  // 图片扩展名
+  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.tiff',
+  // 文档扩展名
+  '.pdf', '.txt', '.md', '.csv',
+  // Office文档扩展名
+  '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+  // 其他常见扩展名
+  '.json', '.xml', '.html', '.css', '.js',
+  // 压缩文件扩展名
+  '.zip', '.rar', '.7z',
+  // 无扩展名文件（如LICENSE, README等）
+  ''
+];
+
+// 文件名安全检查
+function sanitizeFilename(filename: string): string {
+  // 移除路径遍历字符和特殊字符
+  return filename
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .replace(/\.\.+/g, '_')
+    .replace(/^\.|\.$/, '_')
+    .substring(0, 100); // 限制文件名长度
+}
+
 // 配置multer用于文件上传
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, UPLOADS_DIR);
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
+    const timestamp = Date.now();
+    const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+    const sanitizedName = sanitizeFilename(originalName);
+    const uniqueSuffix = Math.round(Math.random() * 1E9);
+    const ext = path.extname(sanitizedName);
+    const nameWithoutExt = path.basename(sanitizedName, ext);
+    cb(null, `${timestamp}_${uniqueSuffix}_${nameWithoutExt}${ext}`);
   }
 });
 
 const upload = multer({ 
   storage,
   limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB限制
+    fileSize: 10 * 1024 * 1024, // 10MB限制
+    files: 1 // 一次只能上传一个文件
+  },
+  fileFilter: (req, file, cb) => {
+    // 检查文件类型
+    if (!ALLOWED_FILE_TYPES.includes(file.mimetype)) {
+      return cb(new Error(`不支持的文件类型: ${file.mimetype}`));
+    }
+    
+    // 检查文件扩展名
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!ALLOWED_EXTENSIONS.includes(ext)) {
+      return cb(new Error(`不支持的文件扩展名: ${ext}`));
+    }
+    
+    // 检查文件名长度
+    if (file.originalname.length > 255) {
+      return cb(new Error('文件名过长'));
+    }
+    
+    cb(null, true);
   }
 });
 
@@ -272,8 +416,8 @@ app.post('/api/auth/login', (req, res) => {
 
 // 获取认证配置信息（无需认证）
 app.get('/api/auth/config', (req, res) => {
-  const isUsingDefaultPassword = AUTH_PASSWORD === 'flatnotes123';
-  res.json({ isUsingDefaultPassword });
+  // 现在所有密码都必须通过环境变量设置，不再有默认密码
+  res.json({ isUsingDefaultPassword: false });
 });
 
 // 验证token接口
@@ -586,34 +730,84 @@ app.put('/api/categories/reorder', async (req, res) => {
 });
 
 // 文件上传
-app.post('/api/upload', upload.single('file'), (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: '没有文件上传' });
+app.post('/api/upload', (req, res) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) {
+      console.error('文件上传错误:', err.message);
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ error: '文件大小超过限制（最大10MB）' });
+        }
+        if (err.code === 'LIMIT_FILE_COUNT') {
+          return res.status(400).json({ error: '一次只能上传一个文件' });
+        }
+      }
+      return res.status(400).json({ error: err.message || '文件上传失败' });
     }
 
-    const fileUrl = `/uploads/${req.file.filename}`;
-    res.json({
-      success: true,
-      filename: req.file.filename,
-      originalName: req.file.originalname,
-      url: fileUrl,
-      size: req.file.size
-    });
-  } catch (error) {
-    console.error('文件上传失败:', error);
-    res.status(500).json({ error: '文件上传失败' });
-  }
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: '没有文件上传' });
+      }
+
+      // 额外的安全检查：验证文件确实存在于预期位置
+      const filePath = path.join(UPLOADS_DIR, req.file.filename);
+      if (!filePath.startsWith(UPLOADS_DIR)) {
+        console.error('安全警告：检测到路径遍历尝试');
+        return res.status(400).json({ error: '无效的文件路径' });
+      }
+
+      const fileUrl = `/uploads/${req.file.filename}`;
+      res.json({
+        success: true,
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        url: fileUrl,
+        size: req.file.size,
+        mimetype: req.file.mimetype
+      });
+    } catch (error) {
+      console.error('文件上传处理失败:', error);
+      res.status(500).json({ error: '文件上传处理失败' });
+    }
+  });
 });
 
 // 删除文件
 app.delete('/api/upload/:filename', async (req, res) => {
   try {
     const filename = req.params.filename;
-    const filePath = path.join(UPLOADS_DIR, filename);
+    
+    // 安全检查：验证文件名格式
+    if (!filename || typeof filename !== 'string') {
+      return res.status(400).json({ error: '无效的文件名' });
+    }
+    
+    // 防止路径遍历攻击
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      console.error('安全警告：检测到路径遍历尝试:', filename);
+      return res.status(400).json({ error: '无效的文件名格式' });
+    }
+    
+    // 使用 path.basename 确保只获取文件名部分
+    const safeFilename = path.basename(filename);
+    const filePath = path.join(UPLOADS_DIR, safeFilename);
+    
+    // 验证文件路径确实在上传目录内
+    if (!filePath.startsWith(UPLOADS_DIR)) {
+      console.error('安全警告：文件路径超出允许范围:', filePath);
+      return res.status(400).json({ error: '无效的文件路径' });
+    }
+    
+    // 检查文件是否存在
+    try {
+      await fs.access(filePath);
+    } catch {
+      return res.status(404).json({ error: '文件不存在' });
+    }
     
     await fs.unlink(filePath);
-    res.json({ success: true });
+    res.json({ success: true, message: '文件删除成功' });
   } catch (error) {
     console.error('删除文件失败:', error);
     res.status(500).json({ error: '删除文件失败' });

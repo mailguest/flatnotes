@@ -77,8 +77,8 @@ EXPOSE 3001
 # 设置环境变量
 ENV NODE_ENV=production
 ENV PORT=3001
-# 设置默认认证密码（建议在部署时通过环境变量覆盖）
-ENV AUTH_PASSWORD=flatnotes123
+# 注意：AUTH_PASSWORD 和 JWT_SECRET 必须在运行时通过环境变量设置
+# 例如：docker run -e AUTH_PASSWORD=your_strong_password -e JWT_SECRET=your_jwt_secret ...
 
 # 生产模式启动命令
 CMD ["tsx", "server/index.ts"]

@@ -118,10 +118,27 @@ export const uploadAPI = {
     const formData = new FormData();
     formData.append('file', file);
 
+    // 获取认证token
+    const token = localStorage.getItem('auth_token');
+    const headers: Record<string, string> = {};
+    
+    // 添加认证头
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch('/api/upload', {
       method: 'POST',
+      headers,
       body: formData,
     });
+
+    // 如果是401错误（未认证），清除本地token并重新加载页面
+    if (response.status === 401) {
+      localStorage.removeItem('auth_token');
+      window.location.reload();
+      return Promise.reject(new Error('认证失败，请重新登录'));
+    }
 
     if (!response.ok) {
       throw new Error(`文件上传失败: ${response.status} ${response.statusText}`);

@@ -3,11 +3,11 @@ import { Tag, Trash2, Loader2, RefreshCw } from 'lucide-react';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Note, Category } from '../types';
+import { useNoteSelection } from '../contexts/NoteSelectionContext';
 
 interface NoteListProps {
   notes: Note[];
   categories: Category[];
-  selectedNoteId: string | null;
   selectedCategory: string | null;
   searchQuery: string;
   selectedTags: string[];
@@ -18,7 +18,6 @@ interface NoteListProps {
 const NoteList: React.FC<NoteListProps> = ({
   notes,
   categories,
-  selectedNoteId,
   selectedCategory,
   searchQuery,
   selectedTags,
@@ -103,15 +102,19 @@ const NoteList: React.FC<NoteListProps> = ({
     // 模拟刷新延迟
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    // 重置显示数量到初始值
-    setDisplayedCount(ITEMS_PER_PAGE);
-    setHasMore(true);
+    // 不重置显示数量，避免列表闪烁
+    // 只更新hasMore状态
+    setHasMore(displayedCount < filteredNotes.length);
     setIsRefreshing(false);
-  }, [isRefreshing]);
+  }, [isRefreshing, displayedCount, filteredNotes.length]);
 
   // 触摸开始
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (scrollContainerRef.current?.scrollTop === 0) {
+    // 检查是否点击在笔记项上，如果是则不启动下拉刷新
+    const target = e.target as HTMLElement;
+    const noteItem = target.closest('[data-note-item]');
+    
+    if (scrollContainerRef.current?.scrollTop === 0 && !noteItem) {
       setStartY(e.touches[0].clientY);
       setIsPulling(true);
     }
@@ -119,7 +122,13 @@ const NoteList: React.FC<NoteListProps> = ({
 
   // 触摸移动
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isPulling || scrollContainerRef.current?.scrollTop !== 0) {
+    if (!isPulling) return;
+    
+    // 检查是否在笔记项上移动
+    const target = e.target as HTMLElement;
+    const noteItem = target.closest('[data-note-item]');
+    
+    if (noteItem || scrollContainerRef.current?.scrollTop !== 0) {
       setIsPulling(false);
       setPullDistance(0);
       return;
@@ -138,9 +147,15 @@ const NoteList: React.FC<NoteListProps> = ({
   }, [isPulling, startY]);
 
   // 触摸结束
-  const handleTouchEnd = useCallback(() => {
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
     if (isPulling && pullDistance >= PULL_THRESHOLD) {
-      handleRefresh();
+      // 再次检查是否在笔记项上结束触摸
+      const target = e.target as HTMLElement;
+      const noteItem = target.closest('[data-note-item]');
+      
+      if (!noteItem) {
+        handleRefresh();
+      }
     }
     
     setIsPulling(false);
@@ -167,13 +182,13 @@ const NoteList: React.FC<NoteListProps> = ({
   // LazyNoteItem 子组件 - 使用React.memo和懒加载优化
   const LazyNoteItem = React.memo<{
     note: Note;
-    selectedNoteId: string | null;
     category?: Category;
     onSelectNote: (noteId: string) => void;
     onDeleteNote: (noteId: string) => void;
     formatDate: (date: Date) => string;
     getContentPreview: (content: string) => string;
-  }>(({ note, selectedNoteId, category, onSelectNote, onDeleteNote, formatDate, getContentPreview }) => {
+  }>(({ note, category, onSelectNote, onDeleteNote, formatDate, getContentPreview }) => {
+    const { selectedNoteId } = useNoteSelection();
     const isSelected = selectedNoteId === note.id;
     const [hasBeenVisible, setHasBeenVisible] = useState(false);
     const observerRef = useRef<HTMLDivElement>(null);
@@ -220,6 +235,10 @@ const NoteList: React.FC<NoteListProps> = ({
       return (
         <div
           ref={observerRef}
+          data-note-item="true"
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
           style={{
             height: '80px', // 预估高度
             backgroundColor: 'var(--bg-secondary)',
@@ -259,6 +278,19 @@ const NoteList: React.FC<NoteListProps> = ({
       isDragging.current = false;
     };
 
+    // 阻止触摸事件传播到父容器
+    const handleTouchStart = (e: React.TouchEvent) => {
+      e.stopPropagation();
+    };
+
+    const handleTouchMove = (e: React.TouchEvent) => {
+      e.stopPropagation();
+    };
+
+    const handleTouchEnd = (e: React.TouchEvent) => {
+      e.stopPropagation();
+    };
+
     return (
       <div
         ref={setNodeRef}
@@ -267,6 +299,10 @@ const NoteList: React.FC<NoteListProps> = ({
         onMouseUp={handleMouseUp}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        data-note-item="true"
         style={{
           ...style,
           padding: '16px',
@@ -374,11 +410,8 @@ const NoteList: React.FC<NoteListProps> = ({
       </div>
     );
   }, (prevProps, nextProps) => {
-      // 计算当前笔记的选中状态
-      const prevSelected = prevProps.selectedNoteId === prevProps.note.id;
-      const nextSelected = nextProps.selectedNoteId === nextProps.note.id;
-      
-      // 只有当笔记内容、选中状态或分类信息改变时才重新渲染
+      // 只有当笔记内容或分类信息改变时才重新渲染
+      // 选中状态通过Context管理，不需要在这里比较
       return (
         prevProps.note.id === nextProps.note.id &&
         prevProps.note.title === nextProps.note.title &&
@@ -386,7 +419,6 @@ const NoteList: React.FC<NoteListProps> = ({
         prevProps.note.updatedAt.getTime() === nextProps.note.updatedAt.getTime() &&
         JSON.stringify(prevProps.note.tags) === JSON.stringify(nextProps.note.tags) &&
         prevProps.note.category === nextProps.note.category &&
-        prevSelected === nextSelected &&
         prevProps.category?.id === nextProps.category?.id &&
         prevProps.category?.name === nextProps.category?.name &&
         prevProps.category?.color === nextProps.category?.color &&
@@ -559,7 +591,6 @@ const NoteList: React.FC<NoteListProps> = ({
                   <LazyNoteItem
                     key={note.id}
                     note={note}
-                    selectedNoteId={selectedNoteId}
                     category={category}
                     onSelectNote={onSelectNote}
                     onDeleteNote={onDeleteNote}
@@ -625,11 +656,9 @@ const NoteList: React.FC<NoteListProps> = ({
 const areEqual = (prevProps: NoteListProps, nextProps: NoteListProps) => {
   // 检查基本props
   if (
-    prevProps.selectedNoteId !== nextProps.selectedNoteId ||
     prevProps.selectedCategory !== nextProps.selectedCategory ||
     prevProps.searchQuery !== nextProps.searchQuery ||
     JSON.stringify(prevProps.selectedTags) !== JSON.stringify(nextProps.selectedTags) ||
-    prevProps.onSelectNote !== nextProps.onSelectNote ||
     prevProps.onDeleteNote !== nextProps.onDeleteNote
   ) {
     return false;
