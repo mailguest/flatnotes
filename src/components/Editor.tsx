@@ -64,9 +64,6 @@ const Editor: React.FC<EditorProps> = ({ note, onUpdateNote, isPreview = false, 
   const handleContentChange = useCallback((content: string) => {
     if (!note) return;
     
-    // 立即更新本地状态以提供即时反馈
-    setLocalContent(content);
-    
     // 清除之前的定时器
     if (contentUpdateTimeoutRef.current) {
       clearTimeout(contentUpdateTimeoutRef.current);
@@ -74,9 +71,43 @@ const Editor: React.FC<EditorProps> = ({ note, onUpdateNote, isPreview = false, 
     
     // 设置新的定时器，300ms后执行更新
     contentUpdateTimeoutRef.current = setTimeout(() => {
+      // 更新到服务器
       onUpdateNote(note.id, { content });
+      // 同步更新本地状态，但这不会影响textarea因为它不是受控组件
+      setLocalContent(content);
     }, 300);
   }, [note?.id, onUpdateNote]);
+
+  // 处理textarea输入变化 - 完全避免状态更新
+  const handleTextareaChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const content = e.target.value;
+    
+    // 直接调用防抖更新到服务器，不更新任何React状态
+    handleContentChange(content);
+  }, [handleContentChange]);
+  
+  // 初始化textarea内容和处理note变化
+  useEffect(() => {
+    if (textareaRef.current) {
+      const textarea = textareaRef.current;
+      const newContent = note?.content || '';
+      
+      // 只有当内容真正不同时才更新
+      if (textarea.value !== newContent) {
+        const scrollTop = textarea.scrollTop;
+        const selectionStart = textarea.selectionStart;
+        const selectionEnd = textarea.selectionEnd;
+        
+        textarea.value = newContent;
+        
+        // 恢复光标位置和滚动位置
+        textarea.setSelectionRange(selectionStart, selectionEnd);
+        textarea.scrollTop = scrollTop;
+      }
+    }
+  }, [note?.content, note?.id]); // 同时监听note.id确保切换笔记时正确更新
+  
+
 
   // 当note改变时，更新本地状态
   useEffect(() => {
@@ -128,12 +159,19 @@ const Editor: React.FC<EditorProps> = ({ note, onUpdateNote, isPreview = false, 
     };
   }, [showAttachments]);
 
+  // 自动调整高度 - 只在切换笔记时调整，避免输入时的滚动跳动
   useEffect(() => {
     if (textareaRef.current && !isPreview && note) {
+      // 保存当前滚动位置
+      const scrollTop = textareaRef.current.scrollTop;
+      
       textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+      
+      // 恢复滚动位置
+      textareaRef.current.scrollTop = scrollTop;
     }
-  }, [note?.content, isPreview, note]);
+  }, [note?.id, isPreview]); // 只监听note.id变化，不监听content变化
 
   // 当切换到新笔记时，重新显示placeholder
   useEffect(() => {
@@ -953,8 +991,7 @@ const Editor: React.FC<EditorProps> = ({ note, onUpdateNote, isPreview = false, 
             )}
             <textarea
               ref={textareaRef}
-              value={localContent}
-              onChange={(e) => handleContentChange(e.target.value)}
+              onChange={handleTextareaChange}
               onKeyDown={handleKeyDown}
               onCompositionStart={handleCompositionStart}
               onCompositionEnd={handleCompositionEnd}
@@ -988,6 +1025,7 @@ Enter - 智能换行（保持缩进/列表）` : ""}
                 border: 'none',
                 outline: 'none',
                 resize: 'none',
+                overflow: 'hidden', // 禁用textarea自身的滚动条，避免双滚动条
                 fontSize: `${settings.fontSize}px`,
                 lineHeight: settings.wordWrap ? '1.6' : '1.4',
                 fontFamily: settings.fontFamily === 'mono' 
