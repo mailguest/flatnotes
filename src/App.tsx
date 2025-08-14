@@ -41,7 +41,7 @@ const AppContent: React.FC = () => {
   
   // 防抖更新的ref
   const updateNoteTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const pendingUpdatesRef = useRef<Map<string, Partial<Note>>>(new Map());
+
 
   // 初始化存储并加载数据
   useEffect(() => {
@@ -54,14 +54,14 @@ const AppContent: React.FC = () => {
         setIsLoading(true);
         
         // 初始化存储模式
-        console.log('🔧 开始初始化存储模式...');
-        const serverAvailable = await initializeStorage();
-        console.log('🔧 存储模式初始化完成:', { serverAvailable, storageMode: getStorageMode() });
+
+        await initializeStorage();
+
         setStorageMode(getStorageMode());
         
         // 设置数据更新回调
         setDataUpdateCallback((updatedData) => {
-          console.log('📥 收到服务器数据更新通知');
+
           setState(prev => ({
             ...prev,
             ...updatedData,
@@ -287,12 +287,7 @@ const AppContent: React.FC = () => {
     const activeId = active.id as string;
     const overId = over.id as string;
     
-    console.log('拖拽结束:', { activeId, overId, storageMode });
-    console.log('当前存储模式检查:', { 
-      storageMode, 
-      isServerMode: storageMode === 'server',
-      getStorageModeResult: getStorageMode()
-    });
+
 
     // 处理分类拖拽重排序
     if (activeId.startsWith('category-') && overId.startsWith('category-')) {
@@ -321,7 +316,7 @@ const AppContent: React.FC = () => {
               order: index
             }));
             await categoriesAPI.reorderCategories(categoryOrders);
-            console.log('分类排序已同步到服务端');
+
           } catch (error) {
             console.error('同步分类排序到服务端失败:', error);
           }
@@ -348,9 +343,9 @@ const AppContent: React.FC = () => {
         // 如果是服务端模式，调用API更新分类
         if (storageMode === 'server') {
           try {
-            console.log(`准备调用API更新笔记分类:`, { noteId, targetCategoryId });
+
             await notesAPI.updateCategory(noteId, targetCategoryId);
-            console.log(`笔记 ${noteId} 已移动到分类 ${targetCategoryId}`);
+
           } catch (error) {
             console.error('同步笔记分类到服务端失败:', error);
             // 回滚本地状态
@@ -371,12 +366,12 @@ const AppContent: React.FC = () => {
       const activeNoteId = activeId; // 直接使用activeId作为noteId
       const overNoteId = overId; // 直接使用overId作为noteId
       
-      console.log('笔记重排序:', { activeNoteId, overNoteId });
+
       
       const activeIndex = state.notes.findIndex(note => note.id === activeNoteId);
       const overIndex = state.notes.findIndex(note => note.id === overNoteId);
       
-      console.log('笔记索引:', { activeIndex, overIndex });
+
       
       if (activeIndex !== -1 && overIndex !== -1 && activeIndex !== overIndex) {
         const newNotes = Array.from(state.notes);
@@ -390,27 +385,27 @@ const AppContent: React.FC = () => {
           updatedAt: new Date()
         }));
 
-        console.log('准备更新笔记排序，存储模式:', storageMode);
+
 
         // 更新本地状态
         setState(prev => ({ ...prev, notes: updatedNotes }));
 
         // 如果是服务端模式，调用API更新排序
         if (storageMode === 'server') {
-          console.log('调用服务端API更新笔记排序');
+
           try {
             const noteOrders = updatedNotes.map((note, index) => ({
               id: note.id,
               order: index
             }));
-            console.log('发送排序数据:', noteOrders);
+
             await notesAPI.reorderNotes(noteOrders);
-            console.log('笔记排序已同步到服务端');
+
           } catch (error) {
             console.error('同步笔记排序到服务端失败:', error);
           }
         } else {
-          console.log('本地存储模式，不调用服务端API');
+
         }
       }
     }

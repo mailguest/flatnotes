@@ -8,6 +8,7 @@ import { Eye, Edit, Upload, Tag, X, Download, Paperclip } from 'lucide-react';
 import { Note, Attachment } from '../types';
 import { uploadAPI, checkServerAvailability } from '../utils/api';
 import { useSettings } from '../contexts/SettingsContext';
+import ExportButton from './ExportButton';
 
 interface EditorProps {
   note: Note | undefined;
@@ -191,7 +192,7 @@ const Editor: React.FC<EditorProps> = ({ note, onUpdateNote, isPreview = false, 
            
            if (serverAvailable) {
              // 服务器可用，上传到服务器
-             console.log(`📤 上传文件到服务器: ${file.name}`);
+     
              const uploadResult = await uploadAPI.uploadFile(file);
              
              attachment = {
@@ -201,10 +202,10 @@ const Editor: React.FC<EditorProps> = ({ note, onUpdateNote, isPreview = false, 
                size: uploadResult.size,
                url: uploadResult.url, // 服务器返回的相对路径
              };
-             console.log(`✅ 文件上传成功: ${file.name} -> ${uploadResult.url}`);
+   
            } else {
              // 服务器不可用，转换为base64存储在本地
-             console.log(`💾 服务器不可用，将文件转换为base64: ${file.name}`);
+   
              const reader = new FileReader();
              
              await new Promise<void>((resolve) => {
@@ -253,9 +254,9 @@ const Editor: React.FC<EditorProps> = ({ note, onUpdateNote, isPreview = false, 
         if (filename) {
           const serverAvailable = await checkServerAvailability();
           if (serverAvailable) {
-            console.log(`🗑️ 从服务器删除文件: ${filename}`);
+      
             await uploadAPI.deleteFile(filename);
-            console.log(`✅ 文件删除成功: ${filename}`);
+    
           }
         }
       }
@@ -597,6 +598,7 @@ const Editor: React.FC<EditorProps> = ({ note, onUpdateNote, isPreview = false, 
             <Upload size={16} />
             上传附件
           </button>
+          <ExportButton note={note} />
           <button
             onClick={() => onTogglePreview?.()}
             style={{

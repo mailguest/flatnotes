@@ -2,8 +2,8 @@
 node_modules
 npm-debug.log*
 
-# 构建输出
-dist
+# 构建输出（注意：生产构建时需要dist目录）
+# dist
 build
 
 # 环境文件
@@ -60,4 +60,16 @@ README.md
 *.md
 
 # 数据文件（在 docker-compose 中通过卷挂载）
-data/notes-backup-*.json
+data/
+# 排除其他json文件，但保留package相关文件
+*.json
+!package*.json
+
+# 开发工具和配置
+.eslintrc*
+.prettierrc*
+tsconfig*.json
+vite.config.ts
+
+# 部署脚本
+deploy.sh

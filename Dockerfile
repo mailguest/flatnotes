@@ -1,5 +1,8 @@
 # 使用官方 Node.js 18 镜像作为基础镜像
+# 如果遇到网络问题，可以尝试使用国内镜像源
 FROM node:18-alpine AS base
+# 备用镜像源（如果上面失败）：
+# FROM registry.cn-hangzhou.aliyuncs.com/library/node:18-alpine AS base
 
 # 设置工作目录
 WORKDIR /app
@@ -29,8 +32,13 @@ FROM base AS build
 # 安装所有依赖（包括开发依赖）
 RUN npm ci
 
+# 复制构建所需的配置文件
+COPY tsconfig*.json vite.config.ts ./
+
 # 复制源代码
-COPY . .
+COPY src ./src
+COPY index.html ./
+COPY public ./public
 
 # 构建前端应用
 RUN npm run build

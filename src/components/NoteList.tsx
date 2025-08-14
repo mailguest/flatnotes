@@ -295,7 +295,7 @@ const NoteList: React.FC<NoteListProps> = ({
             onClick={(e) => {
               e.stopPropagation();
               e.preventDefault();
-              console.log('删除按钮被点击:', note.id);
+      
               onDeleteNote(note.id);
             }}
             style={{

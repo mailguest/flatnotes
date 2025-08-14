@@ -78,20 +78,20 @@ npm run preview
 ```bash
 # 使用生产配置
 docker-compose -f docker-compose.prod.yml up -d
-
-# 或者设置自定义密码
-AUTH_PASSWORD=your_secure_password docker-compose -f docker-compose.prod.yml up -d
 ```
 
 #### 开发环境
 ```bash
-# 启动开发环境
-docker-compose --profile dev up
+# 启动开发环境（Docker Compose v2）
+docker compose up flatnotes-dev --profile dev
+
+# 或者使用旧版本命令（Docker Compose v1）
+docker-compose up flatnotes-dev
 ```
 
 ### 环境变量配置
 
-应用支持以下环境变量：
+环境变量 ：复制 .env.example 为 .env 并设置强密码，应用支持以下环境变量：
 
 - `AUTH_PASSWORD`: 访问密码（默认：flatnotes123）
 - `JWT_SECRET`: JWT 密钥（可选，自动生成）
@@ -192,6 +192,10 @@ MIT License
 - 设置按钮 ：保持右侧位置，优化交互体验
 - 编辑笔记标题、笔记内容时不再导致列表刷新
 - 减少了不必要的组件重新渲染，降低了频繁的数据保存操作
+- Docker 环境兼容性修复 - 解决了容器构建和运行问题
+- 导出功能实现 - 添加了完整的图片和 PDF 导出功能
+- 代码清理 - 移除未使用变量，优化日志输出
+- 依赖管理 - 添加导出功能所需的第三方库
 
 ### 1.0.1 2025-08-13
 - 认证系统 : 实现了完整的 JWT 登录认证功能，包括登录界面和认证上下文管理

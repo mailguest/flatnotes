@@ -21,7 +21,7 @@ services:
       - AUTH_PASSWORD=flatnotes123
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/health"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3001/api/health || curl -f http://localhost:3001/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -46,11 +46,10 @@ services:
     environment:
       - NODE_ENV=development
       - PORT=3001
+      - VITE_HOST=0.0.0.0
       # 认证密码 - 开发环境
       - AUTH_PASSWORD=flatnotes123
     restart: unless-stopped
-    profiles:
-      - dev
 
 volumes:
   # 定义数据卷（可选，如果不想使用绑定挂载）

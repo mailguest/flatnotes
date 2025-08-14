@@ -52,7 +52,7 @@ export const initializeStorage = async (): Promise<boolean> => {
   try {
     const serverAvailable = await checkServerAvailability();
     useServerStorage = serverAvailable;
-    console.log(`存储模式: ${useServerStorage ? '服务端' : '本地存储'}`);
+  
     
     if (useServerStorage) {
       // 启动定期同步
@@ -106,7 +106,7 @@ export const loadData = async (): Promise<Partial<AppState>> => {
 export const saveData = async (data: Partial<AppState>): Promise<void> => {
   // 总是先保存到本地存储（快速响应）
   saveDataToLocalStorage(data);
-  console.log(`💾 数据已保存到本地存储 - 笔记数量: ${data.notes?.length || 0}, 分类数量: ${data.categories?.length || 0}`);
+  
   
   if (useServerStorage && isOnline) {
     // 增加待同步变更计数
@@ -130,10 +130,10 @@ export const saveData = async (data: Partial<AppState>): Promise<void> => {
         await syncToServer();
       }, SYNC_CONFIG.FORCE_SYNC_DELAY);
       
-      console.log(`⏰ 已安排 ${SYNC_CONFIG.FORCE_SYNC_DELAY/1000}秒后同步到服务器 (待同步变更: ${pendingChanges})`);
+
     }
   } else if (useServerStorage && !isOnline) {
-    console.log('📡 网络离线，数据将在网络恢复后同步');
+    
   }
 };
 
@@ -536,7 +536,7 @@ const syncToServer = async (): Promise<void> => {
   }
 
   try {
-    console.log(`🔄 开始同步到服务器 (待同步变更: ${pendingChanges})`);
+
     
     // 从本地存储获取最新数据
     const localData = loadDataFromLocalStorage();
@@ -544,12 +544,12 @@ const syncToServer = async (): Promise<void> => {
     const promises: Promise<void>[] = [];
     
     if (localData.notes) {
-      console.log(`📝 同步 ${localData.notes.length} 条笔记到服务器`);
+
       promises.push(notesAPI.saveAll(localData.notes));
     }
     
     if (localData.categories) {
-      console.log(`📂 同步 ${localData.categories.length} 个分类到服务器`);
+
       promises.push(categoriesAPI.saveAll(localData.categories));
     }
     
@@ -559,7 +559,7 @@ const syncToServer = async (): Promise<void> => {
     pendingChanges = 0;
     lastSyncTime = Date.now();
     
-    console.log('✅ 数据已成功同步到服务器');
+
   } catch (error) {
     console.error('❌ 同步到服务器失败:', error);
     // 不重置pendingChanges，保持待同步状态
@@ -585,7 +585,7 @@ const startAutoSync = (): void => {
     }
   }, SYNC_CONFIG.AUTO_SYNC_INTERVAL);
   
-  console.log(`⏰ 已启动自动同步，间隔: ${SYNC_CONFIG.AUTO_SYNC_INTERVAL/1000}秒`);
+  
 };
 
 // 检查服务器数据是否有更新
@@ -653,7 +653,7 @@ const checkServerDataUpdates = async (): Promise<void> => {
     }
 
     if (hasUpdates) {
-      console.log('🔄 检测到服务器数据更新，正在同步...');
+
       
       // 更新本地存储
       saveDataToLocalStorage(updatedData);
@@ -661,7 +661,7 @@ const checkServerDataUpdates = async (): Promise<void> => {
       // 通知应用更新UI
       dataUpdateCallback(updatedData);
       
-      console.log('✅ 服务器数据已同步到本地');
+      
     }
   } catch (error) {
     console.error('检查服务器数据更新失败:', error);
@@ -680,7 +680,7 @@ const startDataUpdateCheck = (): void => {
     await checkServerDataUpdates();
   }, SYNC_CONFIG.DATA_CHECK_INTERVAL);
   
-  console.log(`🔍 已启动数据更新检查，间隔: ${SYNC_CONFIG.DATA_CHECK_INTERVAL/1000}秒`);
+  
 };
 
 // 设置数据更新回调
@@ -696,7 +696,7 @@ export const checkForDataUpdates = async (): Promise<void> => {
 // 设置网络状态监听器
 const setupNetworkListeners = (): void => {
   window.addEventListener('online', () => {
-    console.log('📡 网络已连接，准备同步数据');
+
     isOnline = true;
     
     // 网络恢复后立即同步
@@ -712,7 +712,7 @@ const setupNetworkListeners = (): void => {
   });
   
   window.addEventListener('offline', () => {
-    console.log('📡 网络已断开，数据将暂存本地');
+
     isOnline = false;
   });
 };
