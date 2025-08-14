@@ -979,7 +979,7 @@ const Editor: React.FC<EditorProps> = ({ note, onUpdateNote, isPreview = false, 
                 textAlign: 'right',
                 userSelect: 'none',
                 whiteSpace: 'pre',
-                overflow: 'hidden',
+                overflow: 'visible',
                 boxSizing: 'border-box'
               }}>
                 {getLineNumbers(note.content).map(lineNum => (
