@@ -88,7 +88,7 @@ const Editor: React.FC<EditorProps> = ({ note, onUpdateNote, isPreview = false, 
   
   // 初始化textarea内容和处理note变化
   useEffect(() => {
-    if (textareaRef.current) {
+    if (textareaRef.current && !isPreview) {
       const textarea = textareaRef.current;
       const newContent = note?.content || '';
       
@@ -105,7 +105,7 @@ const Editor: React.FC<EditorProps> = ({ note, onUpdateNote, isPreview = false, 
         textarea.scrollTop = scrollTop;
       }
     }
-  }, [note?.content, note?.id]); // 同时监听note.id确保切换笔记时正确更新
+  }, [note?.content, note?.id, isPreview]); // 添加isPreview监听，确保预览切换时正确更新
   
 
 
