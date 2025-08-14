@@ -68,8 +68,8 @@ data/
 # 开发工具和配置
 .eslintrc*
 .prettierrc*
-tsconfig*.json
-vite.config.ts
+# tsconfig*.json  # 构建需要这些文件
+# vite.config.ts  # 构建需要这个文件
 
 # 部署脚本
 deploy.sh
