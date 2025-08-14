@@ -38,6 +38,10 @@ const AppContent: React.FC = () => {
   const [storageMode, setStorageMode] = useState<'server' | 'local'>('local');
   const [viewMode, setViewMode] = useState<ViewMode>('three-column');
   const [showSettings, setShowSettings] = useState(false);
+  
+  // 防抖更新的ref
+  const updateNoteTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingUpdatesRef = useRef<Map<string, Partial<Note>>>(new Map());
 
   // 初始化存储并加载数据
   useEffect(() => {
@@ -133,7 +137,14 @@ const AppContent: React.FC = () => {
     }
   }, [state.selectedNoteId, state.selectedCategory, isLoading]);
 
-
+  // 清理防抖定时器
+  useEffect(() => {
+    return () => {
+      if (updateNoteTimeoutRef.current) {
+        clearTimeout(updateNoteTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleCreateNote = () => {
     const categoryId = state.selectedCategory || state.categories[0]?.id || '1';
@@ -150,16 +161,18 @@ const AppContent: React.FC = () => {
     setState(prev => ({ ...prev, selectedNoteId: noteId }));
   }, []);
 
-  const handleUpdateNote = (noteId: string, updates: Partial<Note>) => {
+  const handleUpdateNote = useCallback((noteId: string, updates: Partial<Note>) => {
+    // 立即更新状态，不使用防抖
+    // 防抖逻辑已经在Editor组件中处理
     setState(prev => ({
       ...prev,
-      notes: prev.notes.map(note =>
-        note.id === noteId
+      notes: prev.notes.map(note => 
+        note.id === noteId 
           ? { ...note, ...updates, updatedAt: new Date() }
           : note
       ),
     }));
-  };
+  }, []);
 
   const handleDeleteNote = useCallback((noteId: string) => {
     setState(prev => ({

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -24,6 +24,89 @@ const Editor: React.FC<EditorProps> = ({ note, onUpdateNote, isPreview = false, 
   const [showPlaceholder, setShowPlaceholder] = useState(true); // 控制placeholder显示
   const [showAttachments, setShowAttachments] = useState(false); // 控制附件弹出列表显示
   
+  // 防抖更新的ref
+  const titleUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const contentUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // 本地状态用于立即更新UI显示
+  const [localTitle, setLocalTitle] = useState(note?.title || '');
+  const [localContent, setLocalContent] = useState(note?.content || '');
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  
+  // 计算行号
+  const getLineNumbers = (content: string) => {
+    const lines = content.split('\n');
+    return lines.map((_, index) => index + 1);
+  };
+
+  // 防抖的标题更新函数
+  const handleTitleChange = useCallback((title: string) => {
+    if (!note) return;
+    
+    // 立即更新本地状态以提供即时反馈
+    setLocalTitle(title);
+    
+    // 清除之前的定时器
+    if (titleUpdateTimeoutRef.current) {
+      clearTimeout(titleUpdateTimeoutRef.current);
+    }
+    
+    // 设置新的定时器，300ms后执行更新
+    titleUpdateTimeoutRef.current = setTimeout(() => {
+      onUpdateNote(note.id, { title });
+    }, 300);
+  }, [note?.id, onUpdateNote]);
+
+  // 防抖的内容更新函数
+  const handleContentChange = useCallback((content: string) => {
+    if (!note) return;
+    
+    // 立即更新本地状态以提供即时反馈
+    setLocalContent(content);
+    
+    // 清除之前的定时器
+    if (contentUpdateTimeoutRef.current) {
+      clearTimeout(contentUpdateTimeoutRef.current);
+    }
+    
+    // 设置新的定时器，300ms后执行更新
+    contentUpdateTimeoutRef.current = setTimeout(() => {
+      onUpdateNote(note.id, { content });
+    }, 300);
+  }, [note?.id, onUpdateNote]);
+
+  // 当note改变时，更新本地状态
+  useEffect(() => {
+    if (note) {
+      // 清除之前的防抖定时器，避免影响新笔记
+      if (titleUpdateTimeoutRef.current) {
+        clearTimeout(titleUpdateTimeoutRef.current);
+        titleUpdateTimeoutRef.current = null;
+      }
+      if (contentUpdateTimeoutRef.current) {
+        clearTimeout(contentUpdateTimeoutRef.current);
+        contentUpdateTimeoutRef.current = null;
+      }
+      
+      setLocalTitle(note.title);
+      setLocalContent(note.content);
+    }
+  }, [note?.id]); // 只在笔记ID变化时更新本地状态
+  
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      if (titleUpdateTimeoutRef.current) {
+        clearTimeout(titleUpdateTimeoutRef.current);
+      }
+      if (contentUpdateTimeoutRef.current) {
+        clearTimeout(contentUpdateTimeoutRef.current);
+      }
+    };
+  }, []);
+  
   // 处理点击外部关闭附件弹出列表
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -43,21 +126,13 @@ const Editor: React.FC<EditorProps> = ({ note, onUpdateNote, isPreview = false, 
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showAttachments]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  
-  // 计算行号
-  const getLineNumbers = (content: string) => {
-    const lines = content.split('\n');
-    return lines.map((_, index) => index + 1);
-  };
 
   useEffect(() => {
-    if (textareaRef.current && !isPreview) {
+    if (textareaRef.current && !isPreview && note) {
       textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
     }
-  }, [note?.content, isPreview]);
+  }, [note?.content, isPreview, note]);
 
   // 当切换到新笔记时，重新显示placeholder
   useEffect(() => {
@@ -65,6 +140,9 @@ const Editor: React.FC<EditorProps> = ({ note, onUpdateNote, isPreview = false, 
       setShowPlaceholder(true);
     }
   }, [note?.id]);
+  
+  // 清理定时器
+
 
   if (!note) {
     return (
@@ -81,14 +159,6 @@ const Editor: React.FC<EditorProps> = ({ note, onUpdateNote, isPreview = false, 
       </div>
     );
   }
-
-  const handleTitleChange = (title: string) => {
-    onUpdateNote(note.id, { title });
-  };
-
-  const handleContentChange = (content: string) => {
-    onUpdateNote(note.id, { content });
-  };
 
   // 处理textarea点击事件，隐藏placeholder
   const handleTextareaClick = () => {
@@ -482,7 +552,7 @@ const Editor: React.FC<EditorProps> = ({ note, onUpdateNote, isPreview = false, 
         <div style={{ flex: 1 }}>
           <input
             type="text"
-            value={note.title}
+            value={localTitle}
             onChange={(e) => handleTitleChange(e.target.value)}
             style={{
               fontSize: '18px',
@@ -881,7 +951,7 @@ const Editor: React.FC<EditorProps> = ({ note, onUpdateNote, isPreview = false, 
             )}
             <textarea
               ref={textareaRef}
-              value={note.content}
+              value={localContent}
               onChange={(e) => handleContentChange(e.target.value)}
               onKeyDown={handleKeyDown}
               onCompositionStart={handleCompositionStart}

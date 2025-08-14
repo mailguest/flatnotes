@@ -47,15 +47,6 @@
 - 自动保存
 - 数据导入导出
 
-## 技术栈
-
-- **前端框架**: React 18 + TypeScript
-- **构建工具**: Vite
-- **Markdown 渲染**: react-markdown
-- **数学公式**: KaTeX
-- **拖拽功能**: react-beautiful-dnd
-- **图标**: Lucide React
-- **样式**: CSS-in-JS
 
 ## 快速开始
 
@@ -110,22 +101,22 @@ docker-compose --profile dev up
 #### 配置自定义密码
 
 1. **通过环境变量**：
-   ```bash
-   export AUTH_PASSWORD=your_secure_password
-   docker-compose -f docker-compose.prod.yml up -d
-   ```
+```bash
+export AUTH_PASSWORD=your_secure_password
+docker-compose -f docker-compose.prod.yml up -d
+```
 
 2. **通过 .env 文件**：
-   ```bash
-   # 复制示例配置文件
-   cp .env.example .env
-   
-   # 编辑 .env 文件，设置你的密码
-   # AUTH_PASSWORD=your_secure_password
-   
-   # 启动服务
-   docker-compose -f docker-compose.prod.yml up -d
-   ```
+```bash
+# 复制示例配置文件
+cp .env.example .env
+
+# 编辑 .env 文件，设置你的密码
+# AUTH_PASSWORD=your_secure_password
+
+# 启动服务
+docker-compose -f docker-compose.prod.yml up -d
+```
 
 ### 数据持久化
 
@@ -164,11 +155,11 @@ Docker 部署会自动将数据目录挂载到宿主机的 `./data` 目录，确
 ### 数学公式
 - 行内公式使用单个 `$` 包围：`$E = mc^2$`
 - 块级公式使用双 `$$` 包围：
-  ```
-  $$
-  \sum_{i=1}^{n} x_i = x_1 + x_2 + \cdots + x_n
-  $$
-  ```
+```
+$$
+\sum_{i=1}^{n} x_i = x_1 + x_2 + \cdots + x_n
+$$
+```
 
 ## 键盘快捷键
 
@@ -177,36 +168,6 @@ Docker 部署会自动将数据目录挂载到宿主机的 `./data` 目录，确
 - `Ctrl/Cmd + P`: 切换预览模式
 - `Ctrl/Cmd + F`: 搜索笔记
 
-## 数据存储
-
-应用使用浏览器的 localStorage 来存储数据，包括：
-- 笔记内容
-- 分类设置
-- 标签信息
-- 附件数据（Base64 编码）
-
-## 浏览器兼容性
-
-- Chrome 80+
-- Firefox 75+
-- Safari 13+
-- Edge 80+
-
-## 开发
-
-### 项目结构
-```
-src/
-├── components/          # React 组件
-│   ├── Sidebar.tsx     # 侧边栏组件
-│   └── Editor.tsx      # 编辑器组件
-├── types.ts            # TypeScript 类型定义
-├── utils/              # 工具函数
-│   └── storage.ts      # 数据存储
-├── App.tsx             # 主应用组件
-├── main.tsx            # 应用入口
-└── index.css           # 全局样式
-```
 
 ### 贡献指南
 
@@ -229,6 +190,8 @@ MIT License
 - 信息重组 ："服务端存储版本"移至Logo下方显示
 - 样式优化 ：使用border-box盒模型，调整padding为12px 16px
 - 设置按钮 ：保持右侧位置，优化交互体验
+- 编辑笔记标题、笔记内容时不再导致列表刷新
+- 减少了不必要的组件重新渲染，降低了频繁的数据保存操作
 
 ### 1.0.1 2025-08-13
 - 认证系统 : 实现了完整的 JWT 登录认证功能，包括登录界面和认证上下文管理

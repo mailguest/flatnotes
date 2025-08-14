@@ -167,13 +167,14 @@ const NoteList: React.FC<NoteListProps> = ({
   // LazyNoteItem 子组件 - 使用React.memo和懒加载优化
   const LazyNoteItem = React.memo<{
     note: Note;
-    isSelected: boolean;
+    selectedNoteId: string | null;
     category?: Category;
     onSelectNote: (noteId: string) => void;
     onDeleteNote: (noteId: string) => void;
     formatDate: (date: Date) => string;
     getContentPreview: (content: string) => string;
-  }>(({ note, isSelected, category, onSelectNote, onDeleteNote, formatDate, getContentPreview }) => {
+  }>(({ note, selectedNoteId, category, onSelectNote, onDeleteNote, formatDate, getContentPreview }) => {
+    const isSelected = selectedNoteId === note.id;
     const [hasBeenVisible, setHasBeenVisible] = useState(false);
     const observerRef = useRef<HTMLDivElement>(null);
     const mouseDownTime = useRef<number>(0);
@@ -372,7 +373,27 @@ const NoteList: React.FC<NoteListProps> = ({
         </div>
       </div>
     );
-  });
+  }, (prevProps, nextProps) => {
+      // 计算当前笔记的选中状态
+      const prevSelected = prevProps.selectedNoteId === prevProps.note.id;
+      const nextSelected = nextProps.selectedNoteId === nextProps.note.id;
+      
+      // 只有当笔记内容、选中状态或分类信息改变时才重新渲染
+      return (
+        prevProps.note.id === nextProps.note.id &&
+        prevProps.note.title === nextProps.note.title &&
+        prevProps.note.content === nextProps.note.content &&
+        prevProps.note.updatedAt.getTime() === nextProps.note.updatedAt.getTime() &&
+        JSON.stringify(prevProps.note.tags) === JSON.stringify(nextProps.note.tags) &&
+        prevProps.note.category === nextProps.note.category &&
+        prevSelected === nextSelected &&
+        prevProps.category?.id === nextProps.category?.id &&
+        prevProps.category?.name === nextProps.category?.name &&
+        prevProps.category?.color === nextProps.category?.color &&
+        prevProps.onSelectNote === nextProps.onSelectNote &&
+        prevProps.onDeleteNote === nextProps.onDeleteNote
+      );
+    });
 
   // 缓存分类名称获取函数
   const getCategoryName = useCallback((categoryId: string) => {
@@ -538,7 +559,7 @@ const NoteList: React.FC<NoteListProps> = ({
                   <LazyNoteItem
                     key={note.id}
                     note={note}
-                    isSelected={selectedNoteId === note.id}
+                    selectedNoteId={selectedNoteId}
                     category={category}
                     onSelectNote={onSelectNote}
                     onDeleteNote={onDeleteNote}
@@ -600,4 +621,47 @@ const NoteList: React.FC<NoteListProps> = ({
   );
 };
 
-export default React.memo(NoteList);
+// 自定义比较函数，避免不必要的重新渲染
+const areEqual = (prevProps: NoteListProps, nextProps: NoteListProps) => {
+  // 检查基本props
+  if (
+    prevProps.selectedNoteId !== nextProps.selectedNoteId ||
+    prevProps.selectedCategory !== nextProps.selectedCategory ||
+    prevProps.searchQuery !== nextProps.searchQuery ||
+    JSON.stringify(prevProps.selectedTags) !== JSON.stringify(nextProps.selectedTags) ||
+    prevProps.onSelectNote !== nextProps.onSelectNote ||
+    prevProps.onDeleteNote !== nextProps.onDeleteNote
+  ) {
+    return false;
+  }
+
+  // 智能比较notes数组 - 只有当笔记数量、ID或关键属性变化时才重新渲染
+  if (prevProps.notes.length !== nextProps.notes.length) {
+    return false;
+  }
+
+  // 检查笔记ID顺序是否变化
+  for (let i = 0; i < prevProps.notes.length; i++) {
+    const prevNote = prevProps.notes[i];
+    const nextNote = nextProps.notes[i];
+    
+    if (
+      prevNote.id !== nextNote.id ||
+      prevNote.title !== nextNote.title ||
+      prevNote.category !== nextNote.category ||
+      JSON.stringify(prevNote.tags) !== JSON.stringify(nextNote.tags)
+      // 注意：这里故意不比较content和updatedAt，避免编辑时触发列表刷新
+    ) {
+      return false;
+    }
+  }
+
+  // 简单比较categories
+  if (prevProps.categories !== nextProps.categories) {
+    return false;
+  }
+
+  return true;
+};
+
+export default React.memo(NoteList, areEqual);
